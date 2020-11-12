@@ -1,0 +1,72 @@
+{
+    // See https://go.microsoft.com/fwlink/?LinkId=733558
+    // for the documentation about the tasks.json format
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "debug",
+            "type": "shell",
+            "command": "sudo cat /dev/ttyUSB0",
+            "group": "build",
+            "presentation": {
+                "group": "run"
+            },
+            "problemMatcher": [],
+        },
+        {
+            "label": "build",
+            "type": "shell",
+            "command": "cargo build",
+            "group": "build",
+            "presentation": {
+                "group": "run",
+                "panel": "shared"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "run",
+            "type": "shell",
+            "command": "cargo build && arm-none-eabi-objcopy -O binary target/thumbv7m-none-eabi/debug/keyboard target/thumbv7m-none-eabi/debug/keyboard.bin && st-flash write target/thumbv7m-none-eabi/debug/keyboard.bin 0x08000000",
+            "group": "build",
+            "presentation": {
+                "group": "run",
+                "panel": "shared"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "flash",
+            "type": "shell",
+            "command": "st-flash write target/thumbv7m-none-eabi/debug/keyboard.bin 0x08000000",
+            "group": "build",
+            "presentation": {
+                "group": "run",
+                "panel": "shared"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "erase",
+            "type": "shell",
+            "command": "st-flash erase",
+            "group": "build",
+            "presentation": {
+                "group": "run",
+                "panel": "shared"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "clear",
+            "type": "shell",
+            "command": "rm target/thumbv7m-none-eabi/debug/keyboard target/thumbv7m-none-eabi/debug/keyboard.bin",
+            "group": "build",
+            "presentation": {
+                "group": "run",
+                "panel": "shared"
+            },
+            "problemMatcher": []
+        }
+    ]
+}
