@@ -116,18 +116,15 @@ impl Pma {
         }
     }
     pub fn read_u8_buffer<'a>(&self, buffer: &'a mut [u8], offset: usize) -> &'a mut [u8] {
-        for buffer_index in 0..buffer.len() / 2 {
-            let pma_word = self[ offset / 2 + buffer_index];
-            buffer[2 * buffer_index] = (pma_word & 0xff) as u8;
-            buffer[2 * buffer_index + 1] = (pma_word >> 8 & 0xff) as u8;
-        };
-    
+        
+        for buffer_index in 0..buffer.len() {
+            buffer[buffer_index] = (self[ (offset & !0b1) / 2 + (buffer_index & !0b1) / 2] >> ((offset & 0b1) ^ (buffer_index & 0b1)) * 8) as u8;
+        }
         buffer
     }
 
 }
 use core::ops::{Deref, DerefMut};
-
 impl Deref for Pma {
     type Target = PmaCell;
 
