@@ -13,14 +13,14 @@ use peris::core::{
 use stm32f1::stm32f103::interrupt;
 
 
-enum Status {
+enum DeviceStatus {
     Default,
     GetReportDescriptor,
     SetAddress,
 }
 
-static mut status: Status = Status::Default;
-static mut device_address: u8 = 0x00;
+static mut DEVICE_STATUS: DeviceStatus = DeviceStatus::Default;
+static mut DEVICE_ADDRESS: u8 = 0x00;
 
 #[entry]
 fn main() -> ! {
@@ -84,6 +84,7 @@ pub fn read_pma(buffer: &mut [u8], offset: u32) -> &mut [u8] {
         buffer[2 * buffer_index + 1] = (pma_word >> 8 & 0xff) as u8;
     };
 
+
     buffer
 }
 
@@ -92,99 +93,7 @@ fn USB_LP_CAN_RX0() {
 
     let usb = Usb::new();
     // correct transfer interrupt handler
-    if usb.istr.get_bit(15) == 1 {
-        let device_descriptor: [u8; 18] = [
-            0x12, 
-            0x01, 
-            0x00, 0x02,
-            0x00, 
-            0x00, 
-            0x00, 
-            0x40,
-            0xff, 0xff, 
-            0x01, 0x00,
-            0x00, 0x02, 
-            0x01, 
-            0x02,
-            0x03, 
-            0x01,
-        ];
-    
-        let config_descriptor: [u8; 34] = [
-            0x09, /* bLength: Configuration Descriptor size */
-            0x02, /* bDescriptorType: Configuration */
-            0x22, 0x00, /* wTotalLength: Bytes returned */
-            0x01,         /*bNumInterfaces: 1 interface*/
-            0x01,         /*bConfigurationValue: Configuration value*/
-            0x00,         /*iConfiguration: Index of string descriptor describing
-            the configuration*/
-            0xb0,         /*bmAttributes: bus powered and Support Remote Wake-up */
-            0x32,         /*MaxPower 100 mA: this current is used for detecting Vbus*/
-            
-            /************** Descriptor of Joystick Mouse interface ****************/
-            /* 09 */
-            0x09,         /*bLength: Interface Descriptor size*/
-            0x04,/*bDescriptorType: Interface descriptor type*/
-            0x00,         /*bInterfaceNumber: Number of Interface*/
-            0x00,         /*bAlternateSetting: Alternate setting*/
-            0x01,         /*bNumEndpoints*/
-            0x03,         /*bInterfaceClass: HID*/
-            0x01,         /*bInterfaceSubClass : 1=BOOT, 0=no boot*/
-            0x01,         /*nInterfaceProtocol : 0=none, 1=keyboard, 2=mouse*/
-            0x00,            /*iInterface: Index of string descriptor*/
-            /******************** Descriptor of Joystick Mouse HID ********************/
-            /* 18 */
-            0x09,         /*bLength: HID Descriptor size*/
-            0x21, /*bDescriptorType: HID*/
-            0x01, 0x01,         /*bcdHID: HID Class Spec release number*/
-            0x00,         /*bCountryCode: Hardware target country*/
-            0x01,         /*bNumDescriptors: Number of HID class descriptors to follow*/
-            0x22,         /*bDescriptorType*/
-            0x2d, 0x00,/*wItemLength: Total length of Report descriptor*/
-            /******************** Descriptor of Mouse endpoint ********************/
-            /* 27 */
-            0x07,          /*bLength: Endpoint Descriptor size*/
-            0x05, /*bDescriptorType:*/
-            
-            0x81,     /*bEndpointAddress: Endpoint Address (IN)*/
-            0x03,          /*bmAttributes: Interrupt endpoint*/
-            0x08, 0x00, /*wMaxPacketSize: 4 Byte max */ 
-            0x0a,          /*bInterval: Polling Interval */
-        ];
-    
-        let string_descriptor_1: [u8; 4] = [
-            0x04, 0x03, 0x09, 0x00,
-        ];
-        let string_descriptor_2: [u8; 10] = [
-            0x0a, 0x03, 0x41, 0x00,
-            0x70, 0x00, 0x77, 0x00,
-            0x80, 0x00, 
-        ];
-        let report_descriptor: [u8; 45] = [
-            0x05, 0x01,
-            0x09, 0x06,
-            0xa1, 0x01,
-            0x05, 0x07,
-            0x19, 0xe0,
-            0x29, 0xe7,
-            0x15, 0x00,
-            0x25, 0x01,
-            0x75, 0x01,
-            0x95, 0x08,
-            0x81, 0x02,
-            0x95, 0x01,
-            0x75, 0x08,
-            0x81, 0x01,
-            0x95, 0x06,
-            0x75, 0x08,
-            0x15, 0x00,
-            0x25, 0x65,
-            0x05, 0x07,
-            0x19, 0x00,
-            0x29, 0x65,
-            0x81, 0x00,
-            0xc0,
-        ];
+    if usb.istr.get_bit(15) == 1 {    
 
         let ep_id = usb.istr.read() & 0xF;
         let dir = usb.istr.get_bit(4);
@@ -196,14 +105,13 @@ fn USB_LP_CAN_RX0() {
         if ep_id == 0 {
             if dir == 0 {
                 unsafe {
-
-                    match status {
-                        Status::SetAddress => {
-                            usb.daddr.write(device_address as u32);
-                            status = Status::Default;
+                    match DEVICE_STATUS {
+                        DeviceStatus::SetAddress => {
+                            usb.daddr.write(DEVICE_ADDRESS as u32);
+                            DEVICE_STATUS = DeviceStatus::Default;
                         },
-                        Status::GetReportDescriptor => {
-                            status = Status::Default;
+                        DeviceStatus::GetReportDescriptor => {
+                            DEVICE_STATUS = DeviceStatus::Default;
                         },
                         _ => {},
                     }
@@ -221,7 +129,6 @@ fn USB_LP_CAN_RX0() {
                 read_pma(&mut buffer[..bytes_received as usize], 128);
 
                 if bytes_received == 0 {
-
                     usb.ep0r.write(0x1200);
                 } else {
                     match (buffer[0] as u16) << 8 | buffer[1] as u16 {
@@ -229,6 +136,22 @@ fn USB_LP_CAN_RX0() {
                             match buffer[3] {
         
                                 0x01 => {
+                                    let device_descriptor: [u8; 18] = [
+                                        0x12, 
+                                        0x01, 
+                                        0x00, 0x02,
+                                        0x00, 
+                                        0x00, 
+                                        0x00, 
+                                        0x40,
+                                        0xff, 0xff, 
+                                        0x01, 0x00,
+                                        0x00, 0x02, 
+                                        0x01, 
+                                        0x02,
+                                        0x03, 
+                                        0x01,
+                                    ];
                 
                                     write_pma(&device_descriptor, 64);
                                     write_pma(&[device_descriptor.len() as u8], 2);
@@ -236,6 +159,48 @@ fn USB_LP_CAN_RX0() {
                                     usb.ep0r.write(0x0210);
                                 },
                                 0x02 => {
+
+                                    let config_descriptor: [u8; 34] = [
+                                        0x09, /* bLength: Configuration Descriptor size */
+                                        0x02, /* bDescriptorType: Configuration */
+                                        0x22, 0x00, /* wTotalLength: Bytes returned */
+                                        0x01,         /*bNumInterfaces: 1 interface*/
+                                        0x01,         /*bConfigurationValue: Configuration value*/
+                                        0x00,         /*iConfiguration: Index of string descriptor describing
+                                        the configuration*/
+                                        0xb0,         /*bmAttributes: bus powered and Support Remote Wake-up */
+                                        0x32,         /*MaxPower 100 mA: this current is used for detecting Vbus*/
+                                        
+                                        /************** Descriptor of Joystick Mouse interface ****************/
+                                        /* 09 */
+                                        0x09,         /*bLength: Interface Descriptor size*/
+                                        0x04,/*bDescriptorType: Interface descriptor type*/
+                                        0x00,         /*bInterfaceNumber: Number of Interface*/
+                                        0x00,         /*bAlternateSetting: Alternate setting*/
+                                        0x01,         /*bNumEndpoints*/
+                                        0x03,         /*bInterfaceClass: HID*/
+                                        0x01,         /*bInterfaceSubClass : 1=BOOT, 0=no boot*/
+                                        0x01,         /*nInterfaceProtocol : 0=none, 1=keyboard, 2=mouse*/
+                                        0x00,            /*iInterface: Index of string descriptor*/
+                                        /******************** Descriptor of Joystick Mouse HID ********************/
+                                        /* 18 */
+                                        0x09,         /*bLength: HID Descriptor size*/
+                                        0x21, /*bDescriptorType: HID*/
+                                        0x01, 0x01,         /*bcdHID: HID Class Spec release number*/
+                                        0x00,         /*bCountryCode: Hardware target country*/
+                                        0x01,         /*bNumDescriptors: Number of HID class descriptors to follow*/
+                                        0x22,         /*bDescriptorType*/
+                                        0x2d, 0x00,/*wItemLength: Total length of Report descriptor*/
+                                        /******************** Descriptor of Mouse endpoint ********************/
+                                        /* 27 */
+                                        0x07,          /*bLength: Endpoint Descriptor size*/
+                                        0x05, /*bDescriptorType:*/
+                                        
+                                        0x81,     /*bEndpointAddress: Endpoint Address (IN)*/
+                                        0x03,          /*bmAttributes: Interrupt endpoint*/
+                                        0x08, 0x00, /*wMaxPacketSize: 4 Byte max */ 
+                                        0x0a,          /*bInterval: Polling Interval */
+                                    ];
                 
                                     let mut config_descriptor_requested_length = if buffer[6] == 0x09 {
                                         0x09
@@ -251,10 +216,20 @@ fn USB_LP_CAN_RX0() {
                                 0x03 => {
                 
                                     if buffer[2] == 0x00 {
+
+                                        let string_descriptor_1: [u8; 4] = [
+                                            0x04, 0x03, 0x09, 0x00,
+                                        ];
+
                                         write_pma(&string_descriptor_1, 64);
                                         write_pma(&[string_descriptor_1.len() as u8], 2);
                 
                                     } else {
+                                        let string_descriptor_2: [u8; 10] = [
+                                            0x0a, 0x03, 0x41, 0x00,
+                                            0x70, 0x00, 0x77, 0x00,
+                                            0x80, 0x00, 
+                                        ];
                                         write_pma(&string_descriptor_2, 64);
                                         write_pma(&[string_descriptor_2.len() as u8], 2);
                                     }
@@ -270,8 +245,8 @@ fn USB_LP_CAN_RX0() {
                         },
                         0x0005 => {        
                             unsafe {
-                                device_address = buffer[2] | 0x80;
-                                status = Status::SetAddress;
+                                DEVICE_ADDRESS = buffer[2] | 0x80;
+                                DEVICE_STATUS = DeviceStatus::SetAddress;
                             }
 
                             write_pma(&[0 as u8], 2);
@@ -288,34 +263,46 @@ fn USB_LP_CAN_RX0() {
             
                             usb.ep0r.write(0x0210);
                         },
-                        0x0201 => {        
-                            write_pma(&[0 as u8], 2);
-                            
-                            usb.ep0r.write(0x0210);
-                        },
                         0x8106 => {
         
                             match buffer[3] {
                                 0x22 => {
+                                    let report_descriptor: [u8; 45] = [
+                                        0x05, 0x01,
+                                        0x09, 0x06,
+                                        0xa1, 0x01,
+                                        0x05, 0x07,
+                                        0x19, 0xe0,
+                                        0x29, 0xe7,
+                                        0x15, 0x00,
+                                        0x25, 0x01,
+                                        0x75, 0x01,
+                                        0x95, 0x08,
+                                        0x81, 0x02,
+                                        0x95, 0x01,
+                                        0x75, 0x08,
+                                        0x81, 0x01,
+                                        0x95, 0x06,
+                                        0x75, 0x08,
+                                        0x15, 0x00,
+                                        0x25, 0x65,
+                                        0x05, 0x07,
+                                        0x19, 0x00,
+                                        0x29, 0x65,
+                                        0x81, 0x00,
+                                        0xc0,
+                                    ];
+
                                     write_pma(&report_descriptor, 64);
                                     write_pma(&[report_descriptor.len() as u8], 2);
                                     usb.ep0r.write(0x0210);
                                     unsafe {
-                                        status = Status::GetReportDescriptor;
+                                        DEVICE_STATUS = DeviceStatus::GetReportDescriptor;
                                     }
                 
                                 },
                                 _ => {},
                             }
-        
-                        },
-                        0x2109 => {        
-                        },
-                        0x2101 => {
-        
-                            write_pma(&[0 as u8], 2);
-            
-                            usb.ep0r.write(0x0210);
                         },
                         _ => {},
                     }
