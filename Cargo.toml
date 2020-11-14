@@ -10,6 +10,7 @@ edition = "2018"
 cortex-m-rt = "0.6.12"
 panic-reset = "0.1.0"
 stm32f1 = {version = "0.12.1", features = ["stm32f103", "rt"]}
+peris = { path = "./crates/peris"}
 
 [[bin]]
 bench = false
