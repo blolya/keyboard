@@ -35,6 +35,7 @@ fn main() -> ! {
 fn init_usb() {
     Nvic::new().iser0.write_or(0x0010_0000); // Enable global interrupt for USB low priority
     Rcc::new().enable_usb(); // Enable usb clocking
+    let mut pma = Pma::new();
 
     let usb = Usb::new();
     usb.cntr.reset_bit(1); // Exit power down mode
@@ -45,47 +46,9 @@ fn init_usb() {
     usb.btable.write(0); // Set pma table address offset
     usb.daddr.write(0x80); // Set default device address
 
-    write_pma(&[0x40, 0x00, 0x00, 0x00, 0x80, 0x00, 0x00, 0x84], 0); // Fill btable for EP0
+    pma.write_u8_buffer(&[0x40, 0x00, 0x00, 0x00, 0x80, 0x00, 0x00, 0x84], 0); // Fill btable for EP0
 
     usb.ep0r.write(0x3200); // Allow EP0 to receive data
-}
-
-
-
-pub fn write_pma(buffer: &[u8], offset: u32) {
-    let pma_base = 0x4000_6000;
-
-    let buffer_length = buffer.len();
-
-    for buffer_index in (0..buffer_length).step_by(2) {
-        unsafe {
-            let lower_byte = buffer[buffer_index];
-            let upper_byte = if (buffer_length & 0b1 == 0b1) & (buffer_index == buffer_length - 1) {
-                0x00
-            } else {
-                buffer[buffer_index + 1]
-            };
-
-            let pma_word = (upper_byte as u16) << 8 | lower_byte as u16;
-
-            *((pma_base + offset * 2 + buffer_index as u32 * 2) as *mut u16) = pma_word;
-        }
-    }
-}
-
-pub fn read_pma(buffer: &mut [u8], offset: u32) -> &mut [u8] {
-    let pma_base = 0x4000_6000;
-
-    for buffer_index in 0..buffer.len() / 2 {
-        let pma_word = unsafe {
-            *((pma_base + offset as u32 * 2 + buffer_index as u32 * 4) as *mut u16)
-        };
-        buffer[2 * buffer_index] = (pma_word & 0xff) as u8;
-        buffer[2 * buffer_index + 1] = (pma_word >> 8 & 0xff) as u8;
-    };
-
-
-    buffer
 }
 
 
@@ -99,7 +62,6 @@ impl Pma {
         }
     }
     pub fn write_u8_buffer(&mut self, buffer: &[u8], offset: usize) {
-
         let buffer_length = buffer.len();
     
         for buffer_index in (0..buffer_length).step_by(2) {
@@ -118,7 +80,9 @@ impl Pma {
     pub fn read_u8_buffer<'a>(&self, buffer: &'a mut [u8], offset: usize) -> &'a mut [u8] {
         
         for buffer_index in 0..buffer.len() {
-            buffer[buffer_index] = (self[ (offset & !0b1) / 2 + (buffer_index & !0b1) / 2] >> ((offset & 0b1) ^ (buffer_index & 0b1)) * 8) as u8;
+            let pma_index = (offset & !0b1) / 2 + (buffer_index & !0b1) / 2 + ((offset & 0b1) & (buffer_index & 0b1));
+            let shift = ((offset & 0b1) ^ (buffer_index & 0b1)) * 8;
+            buffer[buffer_index] = (self[pma_index] >> shift) as u8;
         }
         buffer
     }
@@ -294,8 +258,8 @@ fn USB_LP_CAN_RX0() {
                                     } else {
                                         0x22
                                     };
-                                    write_pma(&config_descriptor, 64);
-                                    write_pma(&[config_descriptor_requested_length as u8], 2);
+                                    pma.write_u8_buffer(&config_descriptor, 64);
+                                    pma.write_u8_buffer(&[config_descriptor_requested_length as u8], 2);
                 
                                     usb.ep0r.write(0x0210);
 
@@ -308,8 +272,8 @@ fn USB_LP_CAN_RX0() {
                                             0x04, 0x03, 0x09, 0x00,
                                         ];
 
-                                        write_pma(&string_descriptor_1, 64);
-                                        write_pma(&[string_descriptor_1.len() as u8], 2);
+                                        pma.write_u8_buffer(&string_descriptor_1, 64);
+                                        pma.write_u8_buffer(&[string_descriptor_1.len() as u8], 2);
                 
                                     } else {
                                         let string_descriptor_2: [u8; 10] = [
@@ -317,14 +281,14 @@ fn USB_LP_CAN_RX0() {
                                             0x70, 0x00, 0x77, 0x00,
                                             0x80, 0x00, 
                                         ];
-                                        write_pma(&string_descriptor_2, 64);
-                                        write_pma(&[string_descriptor_2.len() as u8], 2);
+                                        pma.write_u8_buffer(&string_descriptor_2, 64);
+                                        pma.write_u8_buffer(&[string_descriptor_2.len() as u8], 2);
                                     }
                                     
                                     usb.ep0r.write(0x0210);
                                 },
                                 _ => {
-                                    write_pma(&[0 as u8], 2);
+                                    pma.write_u8_buffer(&[0 as u8], 2);
             
                                     usb.ep0r.write(0x0210);
                                 },
@@ -336,17 +300,17 @@ fn USB_LP_CAN_RX0() {
                                 DEVICE_STATUS = DeviceStatus::SetAddress;
                             }
 
-                            write_pma(&[0 as u8], 2);
+                            pma.write_u8_buffer(&[0 as u8], 2);
             
                             usb.ep0r.write(0x0210);
                         },
                         0x0009 => {        
-                            write_pma(&[0 as u8], 2);
+                            pma.write_u8_buffer(&[0 as u8], 2);
             
                             usb.ep0r.write(0x0210);
                         },
                         0x210a => {
-                            write_pma(&[0 as u8], 2);
+                            pma.write_u8_buffer(&[0 as u8], 2);
             
                             usb.ep0r.write(0x0210);
                         },
@@ -380,8 +344,8 @@ fn USB_LP_CAN_RX0() {
                                         0xc0,
                                     ];
 
-                                    write_pma(&report_descriptor, 64);
-                                    write_pma(&[report_descriptor.len() as u8], 2);
+                                    pma.write_u8_buffer(&report_descriptor, 64);
+                                    pma.write_u8_buffer(&[report_descriptor.len() as u8], 2);
                                     usb.ep0r.write(0x0210);
                                     unsafe {
                                         DEVICE_STATUS = DeviceStatus::GetReportDescriptor;
@@ -415,8 +379,8 @@ fn USB_LP_CAN_RX0() {
 
         usb.daddr.write(0x80);
 
-        write_pma(&[0x40, 0x00, 0x00, 0x00, 0x80, 0x00, 0x00, 0x84], 0);
-        write_pma(&[0xc0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00], 8);
+        pma.write_u8_buffer(&[0x40, 0x00, 0x00, 0x00, 0x80, 0x00, 0x00, 0x84], 0);
+        pma.write_u8_buffer(&[0xc0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00], 8);
 
         usb.ep0r.write(0xb280);
         usb.ep1r.write(0x86a1);
@@ -450,17 +414,18 @@ fn USB_LP_CAN_RX0() {
 #[interrupt]
 fn EXTI1() {
     let usb = Usb::new();
+    let mut pma = Pma::new();
 
     let report: [u8; 8] = [
         0x00, // modifier
         0x00, // reserved
         0x04, 0x00, 0x00, 0x00, 0x00, 0x00 // keys
     ];
-    write_pma(&report, 192);
-    write_pma(&[report.len() as u8], 10);
+    pma.write_u8_buffer(&report, 192);
+    pma.write_u8_buffer(&[report.len() as u8], 10);
     usb.ep1r.write(0x0612);
     
-    write_pma(&[0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00], 192);
-    write_pma(&[8 as u8], 10);
+    pma.write_u8_buffer(&[0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00], 192);
+    pma.write_u8_buffer(&[8 as u8], 10);
     usb.ep1r.write(0x0612);
 }
