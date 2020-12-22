@@ -4,12 +4,26 @@
 use cortex_m_rt::entry;
 use panic_reset as _;
 
-use peris::peripherals::clock;
+use peris::peripherals::{
+    clock,
+    ports::{
+        Port,
+        PortNum,
+        PortMode,
+        OutputConfig,
+        InputConfig,
+        MaxSpeed,
+    }
+};
 use peris::core::{
     rcc::Rcc,
     usb::Usb,
     nvic::Nvic,
     pma::Pma,
+    gpio::{
+        gpioa::Gpioa,
+        gpioc::Gpioc,
+    }
 };
 use stm32f1::stm32f103::interrupt;
 
@@ -29,7 +43,77 @@ fn main() -> ! {
     init_usb();
 
 
+    let gpioc = Gpioc::new();
+    let pc13 = Port::new(PortNum::P13, PortMode::Output(OutputConfig::GeneralPurposePushPull(MaxSpeed::S2MHz)), &gpioc);
+    // let pc14 = Port::new(PortNum::P14, PortMode::Output(OutputConfig::GeneralPurposePushPull(MaxSpeed::S2MHz)), &gpioc);
+    // let pc15 = Port::new(PortNum::P15, PortMode::Output(OutputConfig::GeneralPurposePushPull(MaxSpeed::S2MHz)), &gpioc);
+
+    let gpioa = Gpioa::new();
+
+    //columns
+    let pa3 = Port::new(PortNum::P3, PortMode::Input( InputConfig::Floating ), &gpioa);
+    let pa4 = Port::new(PortNum::P4, PortMode::Input( InputConfig::Floating ), &gpioa);
+    let pa5 = Port::new(PortNum::P5, PortMode::Input( InputConfig::Floating ), &gpioa);
+
+    //rows
+    let pa6 = Port::new(PortNum::P6, PortMode::Input( InputConfig::PullDown ), &gpioa);
+    let pa7 = Port::new(PortNum::P7, PortMode::Input( InputConfig::PullDown ), &gpioa);
+
+
+    let report = [0, 0, 0, 0, 0, 0, 0, 0];
+
     loop {
+
+        pa5.set_mode( PortMode::Output( OutputConfig::GeneralPurposePushPull(MaxSpeed::S2MHz)) );
+        pa5.set_high();
+
+        if gpioa.get_port_input(6) == 1 {
+            pc13.set_low();
+        } else {
+            pc13.set_high();
+        }
+        if gpioa.get_port_input(7) == 1 {
+            pc13.set_low();
+        } else {
+            pc13.set_high();
+        }
+
+        pa5.set_low();
+        pa5.set_mode(PortMode::Input(InputConfig::Floating));
+
+        pa4.set_mode( PortMode::Output( OutputConfig::GeneralPurposePushPull(MaxSpeed::S2MHz)) );
+        pa4.set_high();
+
+        if gpioa.get_port_input(6) == 1 {
+            pc13.set_low();
+        } else {
+            pc13.set_high();
+        }
+        if gpioa.get_port_input(7) == 1 {
+            pc13.set_low();
+        } else {
+            pc13.set_high();
+        }
+
+        pa4.set_low();
+        pa4.set_mode(PortMode::Input(InputConfig::Floating));
+
+        pa3.set_mode( PortMode::Output( OutputConfig::GeneralPurposePushPull(MaxSpeed::S2MHz)) );
+        pa3.set_high();
+
+        if gpioa.get_port_input(6) == 1 {
+            pc13.set_low();
+        } else {
+            pc13.set_high();
+        }
+        if gpioa.get_port_input(7) == 1 {
+            pc13.set_low();
+        } else {
+            pc13.set_high();
+        }
+
+        pa3.set_low();
+        pa3.set_mode(PortMode::Input(InputConfig::Floating));
     }
 }
 
