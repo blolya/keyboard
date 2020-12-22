@@ -45,8 +45,7 @@ fn main() -> ! {
 
     let gpioc = Gpioc::new();
     let pc13 = Port::new(PortNum::P13, PortMode::Output(OutputConfig::GeneralPurposePushPull(MaxSpeed::S2MHz)), &gpioc);
-    // let pc14 = Port::new(PortNum::P14, PortMode::Output(OutputConfig::GeneralPurposePushPull(MaxSpeed::S2MHz)), &gpioc);
-    // let pc15 = Port::new(PortNum::P15, PortMode::Output(OutputConfig::GeneralPurposePushPull(MaxSpeed::S2MHz)), &gpioc);
+    pc13.set_high();
 
     let gpioa = Gpioa::new();
 
@@ -60,22 +59,28 @@ fn main() -> ! {
     let pa7 = Port::new(PortNum::P7, PortMode::Input( InputConfig::PullDown ), &gpioa);
 
 
-    let report = [0, 0, 0, 0, 0, 0, 0, 0];
+    let mut report: [u8; 8] = [
+        0x00, // modifier
+        0x00, // reserved
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00 // keys
+    ];
+
+    let mut key_index = 0; 
 
     loop {
+
+        let mut new_report: [u8; 8] = [0, 0, 0, 0, 0, 0, 0, 0];
 
         pa5.set_mode( PortMode::Output( OutputConfig::GeneralPurposePushPull(MaxSpeed::S2MHz)) );
         pa5.set_high();
 
         if gpioa.get_port_input(6) == 1 {
-            pc13.set_low();
-        } else {
-            pc13.set_high();
+            new_report[key_index + 2] = 19;
+            key_index += 1;
         }
         if gpioa.get_port_input(7) == 1 {
-            pc13.set_low();
-        } else {
-            pc13.set_high();
+            new_report[key_index + 2] = 21;
+            key_index += 1;
         }
 
         pa5.set_low();
@@ -85,14 +90,12 @@ fn main() -> ! {
         pa4.set_high();
 
         if gpioa.get_port_input(6) == 1 {
-            pc13.set_low();
-        } else {
-            pc13.set_high();
+            new_report[key_index + 2] = 12;
+            key_index += 1;
         }
         if gpioa.get_port_input(7) == 1 {
-            pc13.set_low();
-        } else {
-            pc13.set_high();
+            new_report[key_index + 2] = 25;
+            key_index += 1;
         }
 
         pa4.set_low();
@@ -102,19 +105,32 @@ fn main() -> ! {
         pa3.set_high();
 
         if gpioa.get_port_input(6) == 1 {
-            pc13.set_low();
-        } else {
-            pc13.set_high();
+            new_report[key_index + 2] = 8;
+            key_index += 1;
         }
         if gpioa.get_port_input(7) == 1 {
-            pc13.set_low();
-        } else {
-            pc13.set_high();
+            new_report[key_index + 2] = 23;
+            key_index += 1;
         }
 
         pa3.set_low();
         pa3.set_mode(PortMode::Input(InputConfig::Floating));
+
+        if new_report != report {
+            report = new_report;
+            usb_send_report(report);
+        }
+
+        key_index = 0;
     }
+}
+
+fn usb_send_report(report: [u8; 8]) {
+    let usb = Usb::new();
+    let mut pma = Pma::new();
+    pma.write_u8_buffer(&report, 192);
+    pma.write_u8_buffer(&[report.len() as u8], 10);
+    usb.ep1r.write(0x0611);
 }
 
 fn init_usb() {
@@ -150,7 +166,7 @@ fn USB_LP_CAN_RX0() {
         let dir = usb.istr.get_bit(4);
 
         if ep_id == 1 {
-
+            usb.ep1r.write(0x0601);
         }
 
         if ep_id == 0 {
@@ -406,23 +422,4 @@ fn USB_LP_CAN_RX0() {
         usb.istr.reset_bit(14);
     };
 
-}
-
-#[interrupt]
-fn EXTI1() {
-    let usb = Usb::new();
-    let mut pma = Pma::new();
-
-    let report: [u8; 8] = [
-        0x00, // modifier
-        0x00, // reserved
-        0x04, 0x00, 0x00, 0x00, 0x00, 0x00 // keys
-    ];
-    pma.write_u8_buffer(&report, 192);
-    pma.write_u8_buffer(&[report.len() as u8], 10);
-    usb.ep1r.write(0x0612);
-    
-    pma.write_u8_buffer(&[0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00], 192);
-    pma.write_u8_buffer(&[8 as u8], 10);
-    usb.ep1r.write(0x0612);
 }
