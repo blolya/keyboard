@@ -232,7 +232,7 @@ fn USB_LP_CAN_RX0() {
             let dir = transaction.direction;
     
             if ep_id == 1 {
-    
+                usb.ep1r.write(0x0601);
             }
     
             if ep_id == 0 {
