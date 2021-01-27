@@ -37,6 +37,7 @@ enum DeviceStatus {
 static mut DEVICE_STATUS: DeviceStatus = DeviceStatus::Default;
 static mut DEVICE_ADDRESS: u8 = 0x00;
 
+
 #[entry]
 fn main() -> ! {
     clock::init();
@@ -74,11 +75,11 @@ fn main() -> ! {
         pa5.set_mode( PortMode::Output( OutputConfig::GeneralPurposePushPull(MaxSpeed::S2MHz)) );
         pa5.set_high();
 
-        if gpioa.get_port_input(6) == 1 {
+        if pa6.get_input() == 1 {
             new_report[key_index + 2] = 19;
             key_index += 1;
         }
-        if gpioa.get_port_input(7) == 1 {
+        if pa7.get_input() == 1 {
             new_report[key_index + 2] = 21;
             key_index += 1;
         }
@@ -89,11 +90,11 @@ fn main() -> ! {
         pa4.set_mode( PortMode::Output( OutputConfig::GeneralPurposePushPull(MaxSpeed::S2MHz)) );
         pa4.set_high();
 
-        if gpioa.get_port_input(6) == 1 {
+        if pa6.get_input() == 1 {
             new_report[key_index + 2] = 12;
             key_index += 1;
         }
-        if gpioa.get_port_input(7) == 1 {
+        if pa7.get_input() == 1 {
             new_report[key_index + 2] = 25;
             key_index += 1;
         }
@@ -104,11 +105,11 @@ fn main() -> ! {
         pa3.set_mode( PortMode::Output( OutputConfig::GeneralPurposePushPull(MaxSpeed::S2MHz)) );
         pa3.set_high();
 
-        if gpioa.get_port_input(6) == 1 {
+        if pa6.get_input() == 1 {
             new_report[key_index + 2] = 8;
             key_index += 1;
         }
-        if gpioa.get_port_input(7) == 1 {
+        if pa7.get_input() == 1 {
             new_report[key_index + 2] = 23;
             key_index += 1;
         }
