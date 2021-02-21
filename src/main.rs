@@ -74,46 +74,26 @@ enum KeySetupMode {
     ReadKeyCode,
 }
 
-#[entry]
-fn main() -> ! {
-    clock::init();
-    init_usb();
+struct KeysMatrix<'a> {
+    columns: [Port<'a>; 3],
+    rows: [Port<'a>; 2],
+}
+impl<'a> KeysMatrix<'a> {
+    fn new(columns: [Port<'a>; 3], rows: [Port<'a>; 2]) -> KeysMatrix<'a> {
+        KeysMatrix {
+            columns,
+            rows,
+        }
+    }
 
-    let mut keyboard_mode = KeyboardMode::Normal;
-    let mut key_setup_mode = KeySetupMode::SelectKeyType;
-    let mut setup_key_num = 0;
-    let mut key_setup_shift = 0;
+    fn scan(&self, keys: &mut [Key; 6]) {
 
-    let gpioc = Gpioc::new();
-    let pc13 = Port::new(PortNum::P13, PortMode::Output(OutputConfig::GeneralPurposePushPull(MaxSpeed::S2MHz)), &gpioc);
-    pc13.set_high();
-
-    let gpioa = Gpioa::new();
-
-    //columns
-    let pa3 = Port::new(PortNum::P3, PortMode::Input( InputConfig::Floating ), &gpioa);
-    let pa4 = Port::new(PortNum::P4, PortMode::Input( InputConfig::Floating ), &gpioa);
-    let pa5 = Port::new(PortNum::P5, PortMode::Input( InputConfig::Floating ), &gpioa);
-
-    //rows
-    let pa6 = Port::new(PortNum::P6, PortMode::Input( InputConfig::PullDown ), &gpioa);
-    let pa7 = Port::new(PortNum::P7, PortMode::Input( InputConfig::PullDown ), &gpioa);
-
-
-    let mut report: [u8; 8] = [
-        0x00, // modifier
-        0x00, // reserved
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00 // keys
-    ];
-
-    let mut keys: [Key; 6] = [ Key::new(0x04), Key::new(0x05), Key::new(0x06), Key::new(0x07), Key::new(0x08), Key::new(0x09) ];
-
-
-    let mut loop_counter: u32 = 0;
-
-    loop {
-
-        let mut new_report: [u8; 8] = [0, 0, 0, 0, 0, 0, 0, 0];
+        let pa3 = &self.columns[0];
+        let pa4 = &self.columns[1];
+        let pa5 = &self.columns[2];
+        
+        let pa6 = &self.rows[1];
+        let pa7 = &self.rows[0];
 
         pa5.set_mode( PortMode::Output( OutputConfig::GeneralPurposePushPull(MaxSpeed::S2MHz)) );
         pa5.set_high();
@@ -207,6 +187,54 @@ fn main() -> ! {
 
         pa3.set_low();
         pa3.set_mode(PortMode::Input(InputConfig::Floating));
+    }
+}
+
+
+#[entry]
+fn main() -> ! {
+    clock::init();
+    init_usb();
+
+    let mut keyboard_mode = KeyboardMode::Normal;
+    let mut key_setup_mode = KeySetupMode::SelectKeyType;
+    let mut setup_key_num = 0;
+    let mut key_setup_shift = 0;
+
+    let gpioc = Gpioc::new();
+    let pc13 = Port::new(PortNum::P13, PortMode::Output(OutputConfig::GeneralPurposePushPull(MaxSpeed::S2MHz)), &gpioc);
+    pc13.set_high();
+
+    let gpioa = Gpioa::new();
+
+    //columns
+    let pa3 = Port::new(PortNum::P3, PortMode::Input( InputConfig::Floating ), &gpioa);
+    let pa4 = Port::new(PortNum::P4, PortMode::Input( InputConfig::Floating ), &gpioa);
+    let pa5 = Port::new(PortNum::P5, PortMode::Input( InputConfig::Floating ), &gpioa);
+
+    //rows
+    let pa6 = Port::new(PortNum::P6, PortMode::Input( InputConfig::PullDown ), &gpioa);
+    let pa7 = Port::new(PortNum::P7, PortMode::Input( InputConfig::PullDown ), &gpioa);
+
+
+    let keys_matrix = KeysMatrix::new( [pa3, pa4, pa5], [pa6, pa7] );
+
+    let mut report: [u8; 8] = [
+        0x00, // modifier
+        0x00, // reserved
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00 // keys
+    ];
+
+    let mut keys: [Key; 6] = [ Key::new(0x04), Key::new(0x05), Key::new(0x06), Key::new(0x07), Key::new(0x08), Key::new(0x09) ];
+
+
+    let mut loop_counter: u32 = 0;
+
+    loop {
+
+        let mut new_report: [u8; 8] = [0, 0, 0, 0, 0, 0, 0, 0];
+
+        keys_matrix.scan(&mut keys);
 
 
         match keyboard_mode {
@@ -312,6 +340,9 @@ fn main() -> ! {
     }
 }
 
+
+// Usb part
+
 fn usb_send_report(report: [u8; 8]) {
     let usb = Usb::new();
     let mut pma = Pma::new();
@@ -339,7 +370,7 @@ fn init_usb() {
     usb.ep0r.write(0x3200); // Allow EP0 to receive data
 }
 
-use core::convert::From;
+
 enum UsbInterrupt {
     CorrectTransfer(UsbTransaction),
     PacketMemoryAreaOverrun,
