@@ -38,11 +38,51 @@ static mut DEVICE_STATUS: DeviceStatus = DeviceStatus::Default;
 static mut DEVICE_ADDRESS: u8 = 0x00;
 
 
+enum KeyType {
+    Modifier,
+    Key,
+}
+struct Key {
+    is_pressed: bool,
+    is_released: bool,
+    key_code: u8,
+}
+impl Key {
+    fn new(key_code: u8) -> Key {
+        Key {
+            is_pressed: false,
+            is_released: false,
+            key_code,
+        }
+    }
+}
+
+enum KeyT {
+    Shift,
+    Alt,
+    A
+}
+
+enum KeyboardMode {
+    Normal,
+    Idle,
+    KeySetup,
+}
+enum KeySetupMode {
+    SelectKey,
+    SelectKeyType,
+    ReadKeyCode,
+}
+
 #[entry]
 fn main() -> ! {
     clock::init();
     init_usb();
 
+    let mut keyboard_mode = KeyboardMode::Normal;
+    let mut key_setup_mode = KeySetupMode::SelectKeyType;
+    let mut setup_key_num = 0;
+    let mut key_setup_shift = 0;
 
     let gpioc = Gpioc::new();
     let pc13 = Port::new(PortNum::P13, PortMode::Output(OutputConfig::GeneralPurposePushPull(MaxSpeed::S2MHz)), &gpioc);
@@ -66,7 +106,10 @@ fn main() -> ! {
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00 // keys
     ];
 
-    let mut key_index = 0; 
+    let mut keys: [Key; 6] = [ Key::new(0x04), Key::new(0x05), Key::new(0x06), Key::new(0x07), Key::new(0x08), Key::new(0x09) ];
+
+
+    let mut loop_counter: u32 = 0;
 
     loop {
 
@@ -76,12 +119,28 @@ fn main() -> ! {
         pa5.set_high();
 
         if pa6.get_input() == 1 {
-            new_report[key_index + 2] = 19;
-            key_index += 1;
+            keys[0].is_pressed = true;
+            keys[0].is_released = false;
+        } else {
+            if keys[0].is_released {
+                keys[0].is_released = false;
+            }
+            if keys[0].is_pressed {
+                keys[0].is_released = true;
+            }
+            keys[0].is_pressed = false;
         }
         if pa7.get_input() == 1 {
-            new_report[key_index + 2] = 21;
-            key_index += 1;
+            keys[1].is_pressed = true;
+            keys[1].is_released = false;
+        } else {
+            if keys[1].is_released {
+                keys[1].is_released = false;
+            }
+            if keys[1].is_pressed {
+                keys[1].is_released = true;
+            }
+            keys[1].is_pressed = false;
         }
 
         pa5.set_low();
@@ -91,12 +150,28 @@ fn main() -> ! {
         pa4.set_high();
 
         if pa6.get_input() == 1 {
-            new_report[key_index + 2] = 12;
-            key_index += 1;
+            keys[2].is_pressed = true;
+            keys[2].is_released = false;
+        } else {
+            if keys[2].is_released {
+                keys[2].is_released = false;
+            }
+            if keys[2].is_pressed {
+                keys[2].is_released = true;
+            }
+            keys[2].is_pressed = false;
         }
         if pa7.get_input() == 1 {
-            new_report[key_index + 2] = 25;
-            key_index += 1;
+            keys[3].is_pressed = true;
+            keys[3].is_released = false;
+        } else {
+            if keys[3].is_released {
+                keys[3].is_released = false;
+            }
+            if keys[3].is_pressed {
+                keys[3].is_released = true;
+            }
+            keys[3].is_pressed = false;
         }
 
         pa4.set_low();
@@ -106,23 +181,134 @@ fn main() -> ! {
         pa3.set_high();
 
         if pa6.get_input() == 1 {
-            new_report[key_index + 2] = 8;
-            key_index += 1;
+            keys[4].is_pressed = true;
+            keys[4].is_released = false;
+        } else {
+            if keys[4].is_released {
+                keys[4].is_released = false;
+            }
+            if keys[4].is_pressed {
+                keys[4].is_released = true;
+            }
+            keys[4].is_pressed = false;
         }
         if pa7.get_input() == 1 {
-            new_report[key_index + 2] = 23;
-            key_index += 1;
+            keys[5].is_pressed = true;
+            keys[5].is_released = false;
+        } else {
+            if keys[5].is_released {
+                keys[5].is_released = false;
+            }
+            if keys[5].is_pressed {
+                keys[5].is_released = true;
+            }
+            keys[5].is_pressed = false;
         }
 
         pa3.set_low();
         pa3.set_mode(PortMode::Input(InputConfig::Floating));
 
-        if new_report != report {
-            report = new_report;
-            usb_send_report(report);
-        }
 
-        key_index = 0;
+        match keyboard_mode {
+            KeyboardMode::Normal => {
+                if keys[0].is_pressed && keys[2].is_pressed && keys[4].is_pressed && !keys[1].is_pressed && !keys[3].is_pressed && !keys[5].is_pressed {
+                    if loop_counter > 10000 {
+                        keyboard_mode = KeyboardMode::Idle;
+                        usb_send_report( [0, 0, 0, 0, 0, 0, 0, 0] );
+                    } else {
+                        loop_counter += 1;
+                    }
+                } else {
+                    let mut report_index = 0;
+
+                    if keys[0].is_pressed {
+                        new_report[report_index + 2] = keys[0].key_code; 
+                        report_index += 1
+                    }
+                    if keys[1].is_pressed {
+                        new_report[report_index + 2] = keys[1].key_code; 
+                        report_index += 1
+                    }
+                    if keys[2].is_pressed {
+                        new_report[report_index + 2] = keys[2].key_code; 
+                        report_index += 1
+                    }
+                    if keys[3].is_pressed {
+                        new_report[report_index + 2] = keys[3].key_code; 
+                        report_index += 1
+                    }
+                    if keys[4].is_pressed {
+                        new_report[report_index + 2] = keys[4].key_code; 
+                        report_index += 1
+                    }
+                    if keys[5].is_pressed {
+                        new_report[report_index + 2] = keys[5].key_code; 
+                    }
+
+                    if new_report != report {
+                        report = new_report;
+                        usb_send_report(report);
+                    }
+                }
+
+            },
+            KeyboardMode::Idle => {
+                loop_counter = 0;
+                pc13.set_low();
+                if !keys[0].is_pressed && !keys[2].is_pressed && !keys[4].is_pressed && !keys[1].is_pressed && !keys[3].is_pressed && !keys[5].is_pressed {
+                    keyboard_mode = KeyboardMode::KeySetup;
+                }
+            },
+            KeyboardMode::KeySetup => {
+                match key_setup_mode {
+                    KeySetupMode::SelectKey => {
+                        if keys[0].is_released {
+                            setup_key_num = 0;
+                            key_setup_mode = KeySetupMode::SelectKeyType;
+                        } else if keys[1].is_released {
+                            setup_key_num = 1;
+                            key_setup_mode = KeySetupMode::SelectKeyType;
+                        } else if keys[2].is_released {
+                            setup_key_num = 2;
+                            key_setup_mode = KeySetupMode::SelectKeyType;
+                        } else if keys[3].is_released {
+                            setup_key_num = 3;
+                            key_setup_mode = KeySetupMode::SelectKeyType;
+                        } else if keys[4].is_released {
+                            setup_key_num = 4;
+                            key_setup_mode = KeySetupMode::SelectKeyType;
+                        } else if keys[5].is_released {
+                            setup_key_num = 5;
+                            key_setup_mode = KeySetupMode::SelectKeyType;
+                        }
+                    },
+                    KeySetupMode::SelectKeyType => {
+                        keys[setup_key_num].key_code = 0x00;
+                        key_setup_mode = KeySetupMode::ReadKeyCode;
+                    },
+                    KeySetupMode::ReadKeyCode => {
+                        if keys[0].is_released {
+                            keys[setup_key_num].key_code |= 0x00 << key_setup_shift;
+                            key_setup_shift += 2;
+                        } else if keys[1].is_released {
+                            keys[setup_key_num].key_code |= 0x01 << key_setup_shift;
+                            key_setup_shift += 2;
+                        } else if keys[2].is_released {
+                            keys[setup_key_num].key_code |= 0x02 << key_setup_shift;
+                            key_setup_shift += 2;
+                        } else if keys[3].is_released {
+                            keys[setup_key_num].key_code |= 0x03 << key_setup_shift;
+                            key_setup_shift += 2;
+                        }
+
+                        if key_setup_shift == 8 {
+                            key_setup_mode = KeySetupMode::SelectKey;
+                            keyboard_mode = KeyboardMode::Normal;
+                        }
+                    }
+                }
+            },
+        }
     }
 }
 
