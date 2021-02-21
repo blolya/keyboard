@@ -44,16 +44,42 @@ enum KeyType {
 }
 struct Key {
     is_pressed: bool,
+    is_pushed: bool,
     is_released: bool,
     key_code: u8,
+
+    safety_counter: u8,
+    safety_cycles: u8,
+    times_scanned: u8,
 }
 impl Key {
     fn new(key_code: u8) -> Key {
         Key {
             is_pressed: false,
             is_released: false,
+            is_pushed: false,
             key_code,
+            safety_counter: 0,
+            safety_cycles: 10,
+            times_scanned: 0,
         }
+    }
+    fn apply_status(&mut self, status: bool) {
+
+        self.times_scanned += 1; 
+
+        if status {
+
+            if !self.is_pressed {
+
+                self.is_pressed = true;
+
+            }
+
+        }
+
+
+        
     }
 }
 
@@ -74,119 +100,142 @@ enum KeySetupMode {
     ReadKeyCode,
 }
 
-struct KeysMatrix<'a> {
-    columns: [Port<'a>; 3],
-    rows: [Port<'a>; 2],
+struct KeyMatrix<'a> {
+    columns: &'a [Port<'a>],
+    rows: &'a [Port<'a>],
 }
-impl<'a> KeysMatrix<'a> {
-    fn new(columns: [Port<'a>; 3], rows: [Port<'a>; 2]) -> KeysMatrix<'a> {
-        KeysMatrix {
+impl<'a> KeyMatrix<'a> {
+    fn new(columns: &'a [Port<'a>], rows: &'a [Port<'a>]) -> KeyMatrix<'a> {
+        KeyMatrix {
             columns,
             rows,
         }
     }
 
-    fn scan(&self, keys: &mut [Key; 6]) {
+    fn scan(&self, keys_scan: &mut [u8] ) {
 
-        let pa3 = &self.columns[0];
-        let pa4 = &self.columns[1];
-        let pa5 = &self.columns[2];
+        let row_len = self.rows.len();
+
+        for (column_index, column) in self.columns.iter().enumerate() {
+
+            column.set_mode( PortMode::Output( OutputConfig::GeneralPurposePushPull(MaxSpeed::S2MHz)) );
+            column.set_high();
+
+            for (row_index, row) in self.rows.iter().enumerate() {
+
+                if row.get_input() == 1 {
+                    keys_scan[ column_index * row_len + row_index ] = 1;
+
+                } else {
+                    keys_scan[ column_index * row_len + row_index ] = 0;
+                }
+            }
+
+            column.set_low();
+            column.set_mode( PortMode::Input( InputConfig::Floating ) );
+    
+        }
+
+
+        // let pa3 = &self.columns[0];
+        // let pa4 = &self.columns[1];
+        // let pa5 = &self.columns[2];
         
-        let pa6 = &self.rows[1];
-        let pa7 = &self.rows[0];
+        // let pa6 = &self.rows[1];
+        // let pa7 = &self.rows[0];
 
-        pa5.set_mode( PortMode::Output( OutputConfig::GeneralPurposePushPull(MaxSpeed::S2MHz)) );
-        pa5.set_high();
+        // pa5.set_mode( PortMode::Output( OutputConfig::GeneralPurposePushPull(MaxSpeed::S2MHz)) );
+        // pa5.set_high();
 
-        if pa6.get_input() == 1 {
-            keys[0].is_pressed = true;
-            keys[0].is_released = false;
-        } else {
-            if keys[0].is_released {
-                keys[0].is_released = false;
-            }
-            if keys[0].is_pressed {
-                keys[0].is_released = true;
-            }
-            keys[0].is_pressed = false;
-        }
-        if pa7.get_input() == 1 {
-            keys[1].is_pressed = true;
-            keys[1].is_released = false;
-        } else {
-            if keys[1].is_released {
-                keys[1].is_released = false;
-            }
-            if keys[1].is_pressed {
-                keys[1].is_released = true;
-            }
-            keys[1].is_pressed = false;
-        }
+        // if pa6.get_input() == 1 {
+        //     keys[0].is_pressed = true;
+        //     keys[0].is_released = false;
+        // } else {
+        //     if keys[0].is_released {
+        //         keys[0].is_released = false;
+        //     }
+        //     if keys[0].is_pressed {
+        //         keys[0].is_released = true;
+        //     }
+        //     keys[0].is_pressed = false;
+        // }
+        // if pa7.get_input() == 1 {
+        //     keys[1].is_pressed = true;
+        //     keys[1].is_released = false;
+        // } else {
+        //     if keys[1].is_released {
+        //         keys[1].is_released = false;
+        //     }
+        //     if keys[1].is_pressed {
+        //         keys[1].is_released = true;
+        //     }
+        //     keys[1].is_pressed = false;
+        // }
 
-        pa5.set_low();
-        pa5.set_mode(PortMode::Input(InputConfig::Floating));
+        // pa5.set_low();
+        // pa5.set_mode(PortMode::Input(InputConfig::Floating));
 
-        pa4.set_mode( PortMode::Output( OutputConfig::GeneralPurposePushPull(MaxSpeed::S2MHz)) );
-        pa4.set_high();
+        // pa4.set_mode( PortMode::Output( OutputConfig::GeneralPurposePushPull(MaxSpeed::S2MHz)) );
+        // pa4.set_high();
 
-        if pa6.get_input() == 1 {
-            keys[2].is_pressed = true;
-            keys[2].is_released = false;
-        } else {
-            if keys[2].is_released {
-                keys[2].is_released = false;
-            }
-            if keys[2].is_pressed {
-                keys[2].is_released = true;
-            }
-            keys[2].is_pressed = false;
-        }
-        if pa7.get_input() == 1 {
-            keys[3].is_pressed = true;
-            keys[3].is_released = false;
-        } else {
-            if keys[3].is_released {
-                keys[3].is_released = false;
-            }
-            if keys[3].is_pressed {
-                keys[3].is_released = true;
-            }
-            keys[3].is_pressed = false;
-        }
+        // if pa6.get_input() == 1 {
+        //     keys[2].is_pressed = true;
+        //     keys[2].is_released = false;
+        // } else {
+        //     if keys[2].is_released {
+        //         keys[2].is_released = false;
+        //     }
+        //     if keys[2].is_pressed {
+        //         keys[2].is_released = true;
+        //     }
+        //     keys[2].is_pressed = false;
+        // }
+        // if pa7.get_input() == 1 {
+        //     keys[3].is_pressed = true;
+        //     keys[3].is_released = false;
+        // } else {
+        //     if keys[3].is_released {
+        //         keys[3].is_released = false;
+        //     }
+        //     if keys[3].is_pressed {
+        //         keys[3].is_released = true;
+        //     }
+        //     keys[3].is_pressed = false;
+        // }
 
-        pa4.set_low();
-        pa4.set_mode(PortMode::Input(InputConfig::Floating));
+        // pa4.set_low();
+        // pa4.set_mode(PortMode::Input(InputConfig::Floating));
 
-        pa3.set_mode( PortMode::Output( OutputConfig::GeneralPurposePushPull(MaxSpeed::S2MHz)) );
-        pa3.set_high();
+        // pa3.set_mode( PortMode::Output( OutputConfig::GeneralPurposePushPull(MaxSpeed::S2MHz)) );
+        // pa3.set_high();
 
-        if pa6.get_input() == 1 {
-            keys[4].is_pressed = true;
-            keys[4].is_released = false;
-        } else {
-            if keys[4].is_released {
-                keys[4].is_released = false;
-            }
-            if keys[4].is_pressed {
-                keys[4].is_released = true;
-            }
-            keys[4].is_pressed = false;
-        }
-        if pa7.get_input() == 1 {
-            keys[5].is_pressed = true;
-            keys[5].is_released = false;
-        } else {
-            if keys[5].is_released {
-                keys[5].is_released = false;
-            }
-            if keys[5].is_pressed {
-                keys[5].is_released = true;
-            }
-            keys[5].is_pressed = false;
-        }
+        // if pa6.get_input() == 1 {
+        //     keys[4].is_pressed = true;
+        //     keys[4].is_released = false;
+        // } else {
+        //     if keys[4].is_released {
+        //         keys[4].is_released = false;
+        //     }
+        //     if keys[4].is_pressed {
+        //         keys[4].is_released = true;
+        //     }
+        //     keys[4].is_pressed = false;
+        // }
+        // if pa7.get_input() == 1 {
+        //     keys[5].is_pressed = true;
+        //     keys[5].is_released = false;
+        // } else {
+        //     if keys[5].is_released {
+        //         keys[5].is_released = false;
+        //     }
+        //     if keys[5].is_pressed {
+        //         keys[5].is_released = true;
+        //     }
+        //     keys[5].is_pressed = false;
+        // }
 
-        pa3.set_low();
-        pa3.set_mode(PortMode::Input(InputConfig::Floating));
+        // pa3.set_low();
+        // pa3.set_mode(PortMode::Input(InputConfig::Floating));
     }
 }
 
@@ -207,17 +256,17 @@ fn main() -> ! {
 
     let gpioa = Gpioa::new();
 
-    //columns
-    let pa3 = Port::new(PortNum::P3, PortMode::Input( InputConfig::Floating ), &gpioa);
-    let pa4 = Port::new(PortNum::P4, PortMode::Input( InputConfig::Floating ), &gpioa);
-    let pa5 = Port::new(PortNum::P5, PortMode::Input( InputConfig::Floating ), &gpioa);
+    let matrix_columns = [
+        Port::new(PortNum::P3, PortMode::Input( InputConfig::Floating ), &gpioa),
+        Port::new(PortNum::P4, PortMode::Input( InputConfig::Floating ), &gpioa),
+        Port::new(PortNum::P5, PortMode::Input( InputConfig::Floating ), &gpioa),
+    ];
+    let matrix_rows = [
+        Port::new(PortNum::P6, PortMode::Input( InputConfig::PullDown ), &gpioa),
+        Port::new(PortNum::P7, PortMode::Input( InputConfig::PullDown ), &gpioa),
+    ];
 
-    //rows
-    let pa6 = Port::new(PortNum::P6, PortMode::Input( InputConfig::PullDown ), &gpioa);
-    let pa7 = Port::new(PortNum::P7, PortMode::Input( InputConfig::PullDown ), &gpioa);
-
-
-    let keys_matrix = KeysMatrix::new( [pa3, pa4, pa5], [pa6, pa7] );
+    let key_matrix = KeyMatrix::new( &matrix_columns, &matrix_rows );
 
     let mut report: [u8; 8] = [
         0x00, // modifier
@@ -226,7 +275,8 @@ fn main() -> ! {
     ];
 
     let mut keys: [Key; 6] = [ Key::new(0x04), Key::new(0x05), Key::new(0x06), Key::new(0x07), Key::new(0x08), Key::new(0x09) ];
-
+    let mut keys_scan = [0; 6];
+    let mut keys_safety_scan = [0; 6]; 
 
     let mut loop_counter: u32 = 0;
 
@@ -234,7 +284,31 @@ fn main() -> ! {
 
         let mut new_report: [u8; 8] = [0, 0, 0, 0, 0, 0, 0, 0];
 
-        keys_matrix.scan(&mut keys);
+
+        for _ in 0 .. 10 {
+
+            key_matrix.scan(&mut keys_scan);
+    
+            for (key_index, key_status) in keys_scan.iter().enumerate() {
+    
+                if *key_status == 1 {
+                    keys_safety_scan[key_index] += 1;
+                }
+    
+            };
+
+        }
+
+        for (key_index, key_safety_scan) in keys_safety_scan.iter().enumerate() {
+
+            if *key_safety_scan > 7 {
+                keys[key_index].is_pressed = true;
+            } else {
+                keys[key_index].is_pressed = false;
+
+            }
+        }
+        keys_safety_scan = [0; 6];
 
 
         match keyboard_mode {
