@@ -44,42 +44,20 @@ enum KeyType {
 }
 struct Key {
     is_pressed: bool,
-    is_pushed: bool,
     is_released: bool,
     key_code: u8,
-
-    safety_counter: u8,
-    safety_cycles: u8,
-    times_scanned: u8,
 }
 impl Key {
     fn new(key_code: u8) -> Key {
         Key {
             is_pressed: false,
             is_released: false,
-            is_pushed: false,
             key_code,
-            safety_counter: 0,
-            safety_cycles: 10,
-            times_scanned: 0,
         }
     }
-    fn apply_status(&mut self, status: bool) {
-
-        self.times_scanned += 1; 
-
-        if status {
-
-            if !self.is_pressed {
-
-                self.is_pressed = true;
-
-            }
-
-        }
-
-
-        
+    fn apply_scan(&mut self, scan: bool) {
+        self.is_released = self.is_pressed & !scan; 
+        self.is_pressed = scan;
     }
 }
 
@@ -135,107 +113,6 @@ impl<'a> KeyMatrix<'a> {
             column.set_mode( PortMode::Input( InputConfig::Floating ) );
     
         }
-
-
-        // let pa3 = &self.columns[0];
-        // let pa4 = &self.columns[1];
-        // let pa5 = &self.columns[2];
-        
-        // let pa6 = &self.rows[1];
-        // let pa7 = &self.rows[0];
-
-        // pa5.set_mode( PortMode::Output( OutputConfig::GeneralPurposePushPull(MaxSpeed::S2MHz)) );
-        // pa5.set_high();
-
-        // if pa6.get_input() == 1 {
-        //     keys[0].is_pressed = true;
-        //     keys[0].is_released = false;
-        // } else {
-        //     if keys[0].is_released {
-        //         keys[0].is_released = false;
-        //     }
-        //     if keys[0].is_pressed {
-        //         keys[0].is_released = true;
-        //     }
-        //     keys[0].is_pressed = false;
-        // }
-        // if pa7.get_input() == 1 {
-        //     keys[1].is_pressed = true;
-        //     keys[1].is_released = false;
-        // } else {
-        //     if keys[1].is_released {
-        //         keys[1].is_released = false;
-        //     }
-        //     if keys[1].is_pressed {
-        //         keys[1].is_released = true;
-        //     }
-        //     keys[1].is_pressed = false;
-        // }
-
-        // pa5.set_low();
-        // pa5.set_mode(PortMode::Input(InputConfig::Floating));
-
-        // pa4.set_mode( PortMode::Output( OutputConfig::GeneralPurposePushPull(MaxSpeed::S2MHz)) );
-        // pa4.set_high();
-
-        // if pa6.get_input() == 1 {
-        //     keys[2].is_pressed = true;
-        //     keys[2].is_released = false;
-        // } else {
-        //     if keys[2].is_released {
-        //         keys[2].is_released = false;
-        //     }
-        //     if keys[2].is_pressed {
-        //         keys[2].is_released = true;
-        //     }
-        //     keys[2].is_pressed = false;
-        // }
-        // if pa7.get_input() == 1 {
-        //     keys[3].is_pressed = true;
-        //     keys[3].is_released = false;
-        // } else {
-        //     if keys[3].is_released {
-        //         keys[3].is_released = false;
-        //     }
-        //     if keys[3].is_pressed {
-        //         keys[3].is_released = true;
-        //     }
-        //     keys[3].is_pressed = false;
-        // }
-
-        // pa4.set_low();
-        // pa4.set_mode(PortMode::Input(InputConfig::Floating));
-
-        // pa3.set_mode( PortMode::Output( OutputConfig::GeneralPurposePushPull(MaxSpeed::S2MHz)) );
-        // pa3.set_high();
-
-        // if pa6.get_input() == 1 {
-        //     keys[4].is_pressed = true;
-        //     keys[4].is_released = false;
-        // } else {
-        //     if keys[4].is_released {
-        //         keys[4].is_released = false;
-        //     }
-        //     if keys[4].is_pressed {
-        //         keys[4].is_released = true;
-        //     }
-        //     keys[4].is_pressed = false;
-        // }
-        // if pa7.get_input() == 1 {
-        //     keys[5].is_pressed = true;
-        //     keys[5].is_released = false;
-        // } else {
-        //     if keys[5].is_released {
-        //         keys[5].is_released = false;
-        //     }
-        //     if keys[5].is_pressed {
-        //         keys[5].is_released = true;
-        //     }
-        //     keys[5].is_pressed = false;
-        // }
-
-        // pa3.set_low();
-        // pa3.set_mode(PortMode::Input(InputConfig::Floating));
     }
 }
 
@@ -300,12 +177,10 @@ fn main() -> ! {
         }
 
         for (key_index, key_safety_scan) in keys_safety_scan.iter().enumerate() {
-
             if *key_safety_scan > 7 {
-                keys[key_index].is_pressed = true;
+                keys[key_index].apply_scan(true);
             } else {
-                keys[key_index].is_pressed = false;
-
+                keys[key_index].apply_scan(false);
             }
         }
         keys_safety_scan = [0; 6];
@@ -313,8 +188,10 @@ fn main() -> ! {
 
         match keyboard_mode {
             KeyboardMode::Normal => {
+                pc13.set_high();
+
                 if keys[0].is_pressed && keys[2].is_pressed && keys[4].is_pressed && !keys[1].is_pressed && !keys[3].is_pressed && !keys[5].is_pressed {
-                    if loop_counter > 10000 {
+                    if loop_counter > 500 {
                         keyboard_mode = KeyboardMode::Idle;
                         usb_send_report( [0, 0, 0, 0, 0, 0, 0, 0] );
                     } else {
@@ -406,6 +283,7 @@ fn main() -> ! {
                         if key_setup_shift == 8 {
                             key_setup_mode = KeySetupMode::SelectKey;
                             keyboard_mode = KeyboardMode::Normal;
+                            key_setup_shift = 0;
                         }
                     }
                 }
