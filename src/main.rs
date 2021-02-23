@@ -1,10 +1,10 @@
 #![no_std]
 #![no_main]
 
-use core::default;
-
 use cortex_m_rt::entry;
 use panic_reset as _;
+
+use core::clone;
 
 use peris::peripherals::{
     clock,
@@ -51,12 +51,12 @@ struct Key {
     key_type: KeyType,
 }
 impl Key {
-    fn new(key_code: u8) -> Key {
+    fn new(key_code: u8, key_type: KeyType) -> Key {
         Key {
             is_pressed: false,
             is_released: false,
             key_code,
-            key_type: KeyType::Default,
+            key_type,
         }
     }
     fn apply_scan(&mut self, scan: bool) {
@@ -175,7 +175,14 @@ fn main() -> ! {
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00 // keys
     ];
 
-    let mut keys: [Key; 6] = [ Key::new(0x04), Key::new(0x05), Key::new(0x06), Key::new(0x07), Key::new(0x08), Key::new(0x09) ];
+    let mut keys =  [ 
+        Key::new(0x01, KeyType::Modifier), 
+        Key::new(0x04, KeyType::Modifier), 
+        Key::new(0x4c, KeyType::Default), 
+        Key::new(0x2a, KeyType::Default), 
+        Key::new(0x10, KeyType::Modifier), 
+        Key::new(0x40, KeyType::Modifier), 
+    ];
     let mut keys_scan = [0; 6];
     let mut keys_safety_scan = [0; 6]; 
 
@@ -186,17 +193,12 @@ fn main() -> ! {
         let mut new_report: [u8; 8] = [0, 0, 0, 0, 0, 0, 0, 0];
 
         for _ in 0 .. 10 {
-
             key_matrix.scan(&mut keys_scan);
-    
             for (key_index, key_status) in keys_scan.iter().enumerate() {
-    
                 if *key_status == 1 {
                     keys_safety_scan[key_index] += 1;
                 }
-    
             };
-
         }
 
         for (key_index, key_safety_scan) in keys_safety_scan.iter().enumerate() {
@@ -220,7 +222,23 @@ fn main() -> ! {
                     } else {
                         loop_counter += 1;
                     }
-                } else {
+                } else if keys[1].is_pressed && keys[3].is_pressed && keys[5].is_pressed && !keys[0].is_pressed && !keys[2].is_pressed && !keys[4].is_pressed {
+                    if loop_counter > 500 {
+
+                        keys = [ 
+                            Key::new(0x01, KeyType::Modifier), 
+                            Key::new(0x04, KeyType::Modifier), 
+                            Key::new(0x4c, KeyType::Default), 
+                            Key::new(0x2a, KeyType::Default), 
+                            Key::new(0x10, KeyType::Modifier), 
+                            Key::new(0x40, KeyType::Modifier), 
+                        ];
+
+                    } else {
+                        loop_counter += 1;
+                    }
+                }
+                else {
                     new_report = create_report(&keys);
                     if new_report != report {
                         report = new_report;
