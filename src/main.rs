@@ -1,6 +1,8 @@
 #![no_std]
 #![no_main]
 
+use core::default;
+
 use cortex_m_rt::entry;
 use panic_reset as _;
 
@@ -40,12 +42,13 @@ static mut DEVICE_ADDRESS: u8 = 0x00;
 
 enum KeyType {
     Modifier,
-    Key,
+    Default,
 }
 struct Key {
     is_pressed: bool,
     is_released: bool,
     key_code: u8,
+    key_type: KeyType,
 }
 impl Key {
     fn new(key_code: u8) -> Key {
@@ -53,6 +56,7 @@ impl Key {
             is_pressed: false,
             is_released: false,
             key_code,
+            key_type: KeyType::Default,
         }
     }
     fn apply_scan(&mut self, scan: bool) {
@@ -61,11 +65,6 @@ impl Key {
     }
 }
 
-enum KeyT {
-    Shift,
-    Alt,
-    A
-}
 
 enum KeyboardMode {
     Normal,
@@ -116,6 +115,31 @@ impl<'a> KeyMatrix<'a> {
     }
 }
 
+fn create_report(keys: &[Key]) -> [u8; 8] {
+
+    let mut report: [u8; 8] = [0; 8];
+    let mut default_key_index: usize = 0;
+
+
+    for key in keys.iter() {
+
+        if key.is_pressed {
+            match key.key_type {
+                KeyType::Default => {
+                    report[default_key_index + 2] = key.key_code;
+                    default_key_index += 1;
+                },
+                KeyType::Modifier => {
+                    report[0] |= key.key_code;
+                }
+            }
+        }
+
+    }
+
+    report
+}
+
 
 #[entry]
 fn main() -> ! {
@@ -134,9 +158,9 @@ fn main() -> ! {
     let gpioa = Gpioa::new();
 
     let matrix_columns = [
-        Port::new(PortNum::P3, PortMode::Input( InputConfig::Floating ), &gpioa),
-        Port::new(PortNum::P4, PortMode::Input( InputConfig::Floating ), &gpioa),
         Port::new(PortNum::P5, PortMode::Input( InputConfig::Floating ), &gpioa),
+        Port::new(PortNum::P4, PortMode::Input( InputConfig::Floating ), &gpioa),
+        Port::new(PortNum::P3, PortMode::Input( InputConfig::Floating ), &gpioa),
     ];
     let matrix_rows = [
         Port::new(PortNum::P6, PortMode::Input( InputConfig::PullDown ), &gpioa),
@@ -160,7 +184,6 @@ fn main() -> ! {
     loop {
 
         let mut new_report: [u8; 8] = [0, 0, 0, 0, 0, 0, 0, 0];
-
 
         for _ in 0 .. 10 {
 
@@ -198,32 +221,7 @@ fn main() -> ! {
                         loop_counter += 1;
                     }
                 } else {
-                    let mut report_index = 0;
-
-                    if keys[0].is_pressed {
-                        new_report[report_index + 2] = keys[0].key_code; 
-                        report_index += 1
-                    }
-                    if keys[1].is_pressed {
-                        new_report[report_index + 2] = keys[1].key_code; 
-                        report_index += 1
-                    }
-                    if keys[2].is_pressed {
-                        new_report[report_index + 2] = keys[2].key_code; 
-                        report_index += 1
-                    }
-                    if keys[3].is_pressed {
-                        new_report[report_index + 2] = keys[3].key_code; 
-                        report_index += 1
-                    }
-                    if keys[4].is_pressed {
-                        new_report[report_index + 2] = keys[4].key_code; 
-                        report_index += 1
-                    }
-                    if keys[5].is_pressed {
-                        new_report[report_index + 2] = keys[5].key_code; 
-                    }
-
+                    new_report = create_report(&keys);
                     if new_report != report {
                         report = new_report;
                         usb_send_report(report);
@@ -263,7 +261,14 @@ fn main() -> ! {
                     },
                     KeySetupMode::SelectKeyType => {
                         keys[setup_key_num].key_code = 0x00;
-                        key_setup_mode = KeySetupMode::ReadKeyCode;
+
+                        if keys[0].is_released {
+                            keys[setup_key_num].key_type = KeyType::Default;
+                            key_setup_mode = KeySetupMode::ReadKeyCode;
+                        } else if keys[1].is_released {
+                            keys[setup_key_num].key_type = KeyType::Modifier;
+                            key_setup_mode = KeySetupMode::ReadKeyCode;
+                        }
                     },
                     KeySetupMode::ReadKeyCode => {
                         if keys[0].is_released {
