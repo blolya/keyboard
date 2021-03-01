@@ -140,6 +140,19 @@ fn create_report(keys: &[Key]) -> [u8; 8] {
     report
 }
 
+fn toggle_port(port: &Port, toggle_counter: &mut u32) {
+    if *toggle_counter > 100 {
+        *toggle_counter = 0;
+
+        if port.get_output() == 0 {
+            port.set_high();
+        } else {
+            port.set_low();
+        }
+    } else {
+        *toggle_counter = *toggle_counter + 1;
+    }
+}
 
 #[entry]
 fn main() -> ! {
@@ -154,6 +167,8 @@ fn main() -> ! {
     let gpioc = Gpioc::new();
     let pc13 = Port::new(PortNum::P13, PortMode::Output(OutputConfig::GeneralPurposePushPull(MaxSpeed::S2MHz)), &gpioc);
     pc13.set_high();
+    let mut toggle_counter = 0;
+    let mut toggle = true;
 
     let gpioa = Gpioa::new();
 
@@ -216,9 +231,9 @@ fn main() -> ! {
                 pc13.set_high();
 
                 if keys[0].is_pressed && keys[2].is_pressed && keys[4].is_pressed && !keys[1].is_pressed && !keys[3].is_pressed && !keys[5].is_pressed {
+                    usb_send_report( [0, 0, 0, 0, 0, 0, 0, 0] );
                     if loop_counter > 500 {
                         keyboard_mode = KeyboardMode::Idle;
-                        usb_send_report( [0, 0, 0, 0, 0, 0, 0, 0] );
                     } else {
                         loop_counter += 1;
                     }
@@ -251,12 +266,16 @@ fn main() -> ! {
                 loop_counter = 0;
                 pc13.set_low();
                 if !keys[0].is_pressed && !keys[2].is_pressed && !keys[4].is_pressed && !keys[1].is_pressed && !keys[3].is_pressed && !keys[5].is_pressed {
+                    usb_send_report([0, 0, 0, 0, 0, 0, 0, 0]);
                     keyboard_mode = KeyboardMode::KeySetup;
                 }
             },
             KeyboardMode::KeySetup => {
                 match key_setup_mode {
                     KeySetupMode::SelectKey => {
+
+                        toggle_port(&pc13, &mut toggle_counter);
+
                         if keys[0].is_released {
                             setup_key_num = 0;
                             key_setup_mode = KeySetupMode::SelectKeyType;
@@ -278,6 +297,7 @@ fn main() -> ! {
                         }
                     },
                     KeySetupMode::SelectKeyType => {
+
                         keys[setup_key_num].key_code = 0x00;
 
                         if keys[0].is_released {
@@ -289,6 +309,9 @@ fn main() -> ! {
                         }
                     },
                     KeySetupMode::ReadKeyCode => {
+
+                        toggle_port(&pc13, &mut toggle_counter);
+
                         if keys[0].is_released {
                             keys[setup_key_num].key_code |= 0x00 << key_setup_shift;
                             key_setup_shift += 2;
