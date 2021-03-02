@@ -145,11 +145,7 @@ fn toggle_port(port: &Port, toggle_counter: &mut u32) {
     if *toggle_counter > 100 {
         *toggle_counter = 0;
 
-        if port.get_output() == 0 {
-            port.set_high();
-        } else {
-            port.set_low();
-        }
+        port.toggle();
     } else {
         *toggle_counter = *toggle_counter + 1;
     }
@@ -239,16 +235,22 @@ fn main() -> ! {
             KeyboardMode::Normal => {
                 pc13.set_high();
 
-                if keys[0].is_pressed && keys[2].is_pressed && keys[4].is_pressed && !keys[1].is_pressed && !keys[3].is_pressed && !keys[5].is_pressed {
+                if keys[0].is_pressed && keys[3].is_pressed && keys[4].is_pressed && !keys[1].is_pressed && !keys[2].is_pressed && !keys[5].is_pressed {
+                    led1.set_low();
+
                     usb_send_report( [0, 0, 0, 0, 0, 0, 0, 0] );
                     if loop_counter > 500 {
                         keyboard_mode = KeyboardMode::Idle;
+                        led1.set_high();
                     } else {
                         loop_counter += 1;
                     }
-                } else if keys[1].is_pressed && keys[3].is_pressed && keys[5].is_pressed && !keys[0].is_pressed && !keys[2].is_pressed && !keys[4].is_pressed {
+                } else if keys[1].is_pressed && keys[2].is_pressed && keys[5].is_pressed && !keys[0].is_pressed && !keys[3].is_pressed && !keys[4].is_pressed {
+                    led3.set_low();
+
                     if loop_counter > 500 {
 
+                        loop_counter = 0;
                         keys = [ 
                             Key::new(0x01, KeyType::Modifier), 
                             Key::new(0x04, KeyType::Modifier), 
@@ -257,6 +259,8 @@ fn main() -> ! {
                             Key::new(0x10, KeyType::Modifier), 
                             Key::new(0x40, KeyType::Modifier), 
                         ];
+
+                        led3.set_high();
 
                     } else {
                         loop_counter += 1;
@@ -311,7 +315,7 @@ fn main() -> ! {
                     KeySetupMode::SelectKeyType => {
 
                         led2.set_high();
-                        toggle_port(&led3, &mut toggle_counter);
+                        toggle_port(&pc13, &mut toggle_counter);
 
                         keys[setup_key_num].key_code = 0x00;
 
@@ -363,7 +367,7 @@ fn main() -> ! {
                             key_setup_mode = KeySetupMode::SelectKey;
                             keyboard_mode = KeyboardMode::Normal;
                             key_setup_shift = 0;
-                            
+
                             led1.set_high();
                             led2.set_high();
                             led3.set_high();
