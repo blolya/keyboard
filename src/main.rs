@@ -24,6 +24,7 @@ use peris::core::{
     pma::Pma,
     gpio::{
         gpioa::Gpioa,
+        gpiob::Gpiob,
         gpioc::Gpioc,
     }
 };
@@ -167,10 +168,18 @@ fn main() -> ! {
     let gpioc = Gpioc::new();
     let pc13 = Port::new(PortNum::P13, PortMode::Output(OutputConfig::GeneralPurposePushPull(MaxSpeed::S2MHz)), &gpioc);
     pc13.set_high();
+
+    let gpioa = Gpioa::new();
+    let led1 = Port::new(PortNum::P15, PortMode::Output(OutputConfig::GeneralPurposePushPull(MaxSpeed::S2MHz)), &gpioa);
+
+    let gpiob = Gpiob::new();
+    let led2 = Port::new(PortNum::P4, PortMode::Output(OutputConfig::GeneralPurposePushPull(MaxSpeed::S2MHz)), &gpiob);
+    let led3 = Port::new(PortNum::P6, PortMode::Output(OutputConfig::GeneralPurposePushPull(MaxSpeed::S2MHz)), &gpiob);
+
+
     let mut toggle_counter = 0;
     let mut toggle = true;
 
-    let gpioa = Gpioa::new();
 
     let matrix_columns = [
         Port::new(PortNum::P5, PortMode::Input( InputConfig::Floating ), &gpioa),
@@ -264,7 +273,9 @@ fn main() -> ! {
             },
             KeyboardMode::Idle => {
                 loop_counter = 0;
-                pc13.set_low();
+                
+                toggle_port(&led1, &mut toggle_counter);
+
                 if !keys[0].is_pressed && !keys[2].is_pressed && !keys[4].is_pressed && !keys[1].is_pressed && !keys[3].is_pressed && !keys[5].is_pressed {
                     usb_send_report([0, 0, 0, 0, 0, 0, 0, 0]);
                     keyboard_mode = KeyboardMode::KeySetup;
@@ -274,7 +285,8 @@ fn main() -> ! {
                 match key_setup_mode {
                     KeySetupMode::SelectKey => {
 
-                        toggle_port(&pc13, &mut toggle_counter);
+                        led1.set_high();
+                        toggle_port(&led2, &mut toggle_counter);
 
                         if keys[0].is_released {
                             setup_key_num = 0;
@@ -298,6 +310,9 @@ fn main() -> ! {
                     },
                     KeySetupMode::SelectKeyType => {
 
+                        led2.set_high();
+                        toggle_port(&led3, &mut toggle_counter);
+
                         keys[setup_key_num].key_code = 0x00;
 
                         if keys[0].is_released {
@@ -310,7 +325,7 @@ fn main() -> ! {
                     },
                     KeySetupMode::ReadKeyCode => {
 
-                        toggle_port(&pc13, &mut toggle_counter);
+                        led3.set_high();
 
                         if keys[0].is_released {
                             keys[setup_key_num].key_code |= 0x00 << key_setup_shift;
@@ -326,10 +341,32 @@ fn main() -> ! {
                             key_setup_shift += 2;
                         }
 
+                        if key_setup_shift == 0 {
+                            led1.set_low();
+                            led2.set_high();
+                            led3.set_high();
+                        } else if key_setup_shift == 2 {
+                            led1.set_high();
+                            led2.set_low();
+                            led3.set_high();
+                        } else if key_setup_shift == 4 {
+                            led1.set_low();
+                            led2.set_low();
+                            led3.set_high();
+                        } else if key_setup_shift == 6 {
+                            led1.set_high();
+                            led2.set_high();
+                            led3.set_low();
+                        }
+
                         if key_setup_shift == 8 {
                             key_setup_mode = KeySetupMode::SelectKey;
                             keyboard_mode = KeyboardMode::Normal;
                             key_setup_shift = 0;
+                            
+                            led1.set_high();
+                            led2.set_high();
+                            led3.set_high();
                         }
                     }
                 }
