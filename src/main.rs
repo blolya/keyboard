@@ -40,6 +40,78 @@ enum DeviceStatus {
 static mut DEVICE_STATUS: DeviceStatus = DeviceStatus::Default;
 static mut DEVICE_ADDRESS: u8 = 0x00;
 
+struct Led<'a> {
+    port: Port<'a>,
+    toggle_counter: u32,
+}
+impl<'a> Led<'a> {
+    fn new(port: Port) -> Led {
+        Led {
+            port,
+            toggle_counter: 0,
+        }
+    }
+
+    fn turn_on(&self) {
+        self.port.set_low();   
+    }
+    fn turn_off(&self) {
+        self.port.set_high();   
+    }
+
+    fn toggle(&mut self) {
+        if self.toggle_counter > 100 {
+            self.toggle_counter = 0;
+            self.port.toggle();
+        } else {
+            self.toggle_counter += 1;
+        }
+    }
+}
+struct Keyboard<'a> {
+    key_matrix: KeyMatrix<'a>,
+    keys: [Key; 6],
+    leds: [Led<'a>; 3],
+    mode: KeyboardMode,
+}
+impl<'a> Keyboard<'a> {
+    fn new( key_matrix: KeyMatrix<'a>, keys: [Key; 6], leds: [Led<'a>; 3] ) -> Keyboard<'a> {
+
+        Keyboard {
+            key_matrix,
+            keys,
+            leds,
+            mode: KeyboardMode::Normal,
+        }
+    }
+
+    fn scan(&mut self) {
+
+        let safety_cycles_num = 10;
+
+        let mut keys_scan = [0; 6];
+        let mut keys_safety_scan = [0; 6]; 
+
+        for _ in 0 .. safety_cycles_num {
+            self.key_matrix.scan(&mut keys_scan);
+            for (key_index, key_status) in keys_scan.iter().enumerate() {
+                if *key_status == 1 {
+                    keys_safety_scan[key_index] += 1;
+                }
+            };
+        }
+
+        for (key_index, key_safety_scan) in keys_safety_scan.iter().enumerate() {
+            if *key_safety_scan > 7 {
+                self.keys[key_index].apply_scan(true);
+            } else {
+                self.keys[key_index].apply_scan(false);
+            }
+        }
+
+    }
+}
+
 
 enum KeyType {
     Modifier,
