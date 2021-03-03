@@ -72,7 +72,7 @@ struct Keyboard<'a> {
     key_matrix: KeyMatrix<'a>,
     keys: [Key; 6],
     leds: [Led<'a>; 3],
-    mode: KeyboardMode<'a>,
+    mode: KeyboardMode,
 }
 impl<'a> Keyboard<'a> {
     fn new( key_matrix: KeyMatrix<'a>, keys: [Key; 6], leds: [Led<'a>; 3] ) -> Keyboard<'a> {
@@ -108,7 +108,30 @@ impl<'a> Keyboard<'a> {
                 self.keys[key_index].apply_scan(false);
             }
         }
+    }
 
+    fn get_report(&self) -> [u8; 8] {
+        let mut report: [u8; 8] = [0; 8];
+        let mut default_key_index: usize = 0;
+    
+    
+        for key in self.keys.iter() {
+    
+            if key.is_pressed {
+                match key.key_type {
+                    KeyType::Default => {
+                        report[default_key_index + 2] = key.key_code;
+                        default_key_index += 1;
+                    },
+                    KeyType::Modifier => {
+                        report[0] |= key.key_code;
+                    }
+                }
+            }
+    
+        }
+    
+        report
     }
 }
 
@@ -139,17 +162,26 @@ impl Key {
 }
 
 
-enum KeyboardMode<'a> {
+enum KeyboardMode {
     Normal,
     Idle,
-    KeySetup(&'a KeySetupMode),
+    KeySetup(KeySetupMode),
 }
 enum KeySetupMode {
     SelectKey,
-    SelectKeyType,
-    ReadKeyCode,
+    SelectKeyType(usize),
+    ReadKeyCode(usize),
 }
-
+impl Clone for KeySetupMode {
+    fn clone(&self) -> KeySetupMode {
+        match self {
+            KeySetupMode::SelectKey => KeySetupMode::SelectKey,
+            KeySetupMode::SelectKeyType(a) => KeySetupMode::SelectKeyType(*a),
+            KeySetupMode::ReadKeyCode(a) => KeySetupMode::ReadKeyCode(*a),
+        }
+    }
+}
+impl Copy for KeySetupMode {}
 struct KeyMatrix<'a> {
     columns: [Port<'a>; 3],
     rows: [Port<'a>; 2],
@@ -188,41 +220,6 @@ impl<'a> KeyMatrix<'a> {
     }
 }
 
-fn create_report(keys: &[Key]) -> [u8; 8] {
-
-    let mut report: [u8; 8] = [0; 8];
-    let mut default_key_index: usize = 0;
-
-
-    for key in keys.iter() {
-
-        if key.is_pressed {
-            match key.key_type {
-                KeyType::Default => {
-                    report[default_key_index + 2] = key.key_code;
-                    default_key_index += 1;
-                },
-                KeyType::Modifier => {
-                    report[0] |= key.key_code;
-                }
-            }
-        }
-
-    }
-
-    report
-}
-
-fn toggle_port(port: &Port, toggle_counter: &mut u32) {
-    if *toggle_counter > 100 {
-        *toggle_counter = 0;
-
-        port.toggle();
-    } else {
-        *toggle_counter = *toggle_counter + 1;
-    }
-}
-
 #[entry]
 fn main() -> ! {
     clock::init();
@@ -257,27 +254,23 @@ fn main() -> ! {
         Led::new( Port::new(PortNum::P4, PortMode::Output(OutputConfig::GeneralPurposePushPull(MaxSpeed::S2MHz)), &gpiob) ),
         Led::new( Port::new(PortNum::P6, PortMode::Output(OutputConfig::GeneralPurposePushPull(MaxSpeed::S2MHz)), &gpiob) ),
     ];
+    leds[0].turn_off();
+    leds[1].turn_off();
+    leds[2].turn_off();
 
     let mut keypad = Keyboard::new(key_matrix, keys, leds);
 
-    let mut setup_key_num = 0;
     let mut key_setup_shift = 0;
 
     let gpioc = Gpioc::new();
     let pc13 = Port::new(PortNum::P13, PortMode::Output(OutputConfig::GeneralPurposePushPull(MaxSpeed::S2MHz)), &gpioc);
     pc13.set_high();
 
-    let mut toggle_counter = 0;
-    let mut toggle = true;
-
     let mut report: [u8; 8] = [
         0x00, // modifier
         0x00, // reserved
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00 // keys
     ];
-
-    let mut keys_scan = [0; 6];
-    let mut keys_safety_scan = [0; 6]; 
 
     let mut loop_counter: u32 = 0;
 
@@ -321,7 +314,7 @@ fn main() -> ! {
                     }
                 }
                 else {
-                    new_report = create_report(&keypad.keys);
+                    new_report = keypad.get_report();
                     if new_report != report {
                         report = new_report;
                         usb_send_report(report);
@@ -336,66 +329,60 @@ fn main() -> ! {
 
                 if !keypad.keys[0].is_pressed && !keypad.keys[2].is_pressed && !keypad.keys[4].is_pressed && !keypad.keys[1].is_pressed && !keypad.keys[3].is_pressed && !keypad.keys[5].is_pressed {
                     usb_send_report([0, 0, 0, 0, 0, 0, 0, 0]);
-                    keypad.mode = KeyboardMode::KeySetup( &KeySetupMode::SelectKey );
+                    keypad.mode = KeyboardMode::KeySetup( KeySetupMode::SelectKey );
                 }
             },
             KeyboardMode::KeySetup(key_setup_mode) => {
-                match *key_setup_mode {
+                match key_setup_mode {
                     KeySetupMode::SelectKey => {
 
                         keypad.leds[0].turn_off();
                         keypad.leds[1].toggle();
 
                         if keypad.keys[0].is_released {
-                            setup_key_num = 0;
-                            keypad.mode = KeyboardMode::KeySetup(&KeySetupMode::SelectKeyType);
+                            keypad.mode = KeyboardMode::KeySetup(KeySetupMode::SelectKeyType(0));
                         } else if keypad.keys[1].is_released {
-                            setup_key_num = 1;
-                            keypad.mode = KeyboardMode::KeySetup(&KeySetupMode::SelectKeyType);
+                            keypad.mode = KeyboardMode::KeySetup(KeySetupMode::SelectKeyType(1));
                         } else if keypad.keys[2].is_released {
-                            setup_key_num = 2;
-                            keypad.mode = KeyboardMode::KeySetup(&KeySetupMode::SelectKeyType);
+                            keypad.mode = KeyboardMode::KeySetup(KeySetupMode::SelectKeyType(2));
                         } else if keypad.keys[3].is_released {
-                            setup_key_num = 3;
-                            keypad.mode = KeyboardMode::KeySetup(&KeySetupMode::SelectKeyType);
+                            keypad.mode = KeyboardMode::KeySetup(KeySetupMode::SelectKeyType(3));
                         } else if keypad.keys[4].is_released {
-                            setup_key_num = 4;
-                            keypad.mode = KeyboardMode::KeySetup(&KeySetupMode::SelectKeyType);
+                            keypad.mode = KeyboardMode::KeySetup(KeySetupMode::SelectKeyType(4));
                         } else if keypad.keys[5].is_released {
-                            setup_key_num = 5;
-                            keypad.mode = KeyboardMode::KeySetup(&KeySetupMode::SelectKeyType);
+                            keypad.mode = KeyboardMode::KeySetup(KeySetupMode::SelectKeyType(5));
                         }
                     },
-                    KeySetupMode::SelectKeyType => {
+                    KeySetupMode::SelectKeyType(key_num) => {
 
                         keypad.leds[1].turn_off();
                         keypad.leds[2].toggle();
 
-                        keypad.keys[setup_key_num].key_code = 0x00;
+                        keypad.keys[key_num].key_code = 0x00;
 
                         if keypad.keys[0].is_released {
-                            keypad.keys[setup_key_num].key_type = KeyType::Default;
-                            keypad.mode = KeyboardMode::KeySetup(&KeySetupMode::ReadKeyCode);
+                            keypad.keys[key_num].key_type = KeyType::Default;
+                            keypad.mode = KeyboardMode::KeySetup( KeySetupMode::ReadKeyCode(key_num) );
                         } else if keypad.keys[1].is_released {
-                            keypad.keys[setup_key_num].key_type = KeyType::Modifier;
-                            keypad.mode = KeyboardMode::KeySetup(&KeySetupMode::ReadKeyCode);
+                            keypad.keys[key_num].key_type = KeyType::Modifier;
+                            keypad.mode = KeyboardMode::KeySetup( KeySetupMode::ReadKeyCode(key_num) );
                         }
                     },
-                    KeySetupMode::ReadKeyCode => {
+                    KeySetupMode::ReadKeyCode(key_num) => {
 
                         keypad.leds[2].turn_off();
 
                         if keypad.keys[0].is_released {
-                            keypad.keys[setup_key_num].key_code |= 0x00 << key_setup_shift;
+                            keypad.keys[key_num].key_code |= 0x00 << key_setup_shift;
                             key_setup_shift += 2;
                         } else if keypad.keys[1].is_released {
-                            keypad.keys[setup_key_num].key_code |= 0x01 << key_setup_shift;
+                            keypad.keys[key_num].key_code |= 0x01 << key_setup_shift;
                             key_setup_shift += 2;
                         } else if keypad.keys[2].is_released {
-                            keypad.keys[setup_key_num].key_code |= 0x02 << key_setup_shift;
+                            keypad.keys[key_num].key_code |= 0x02 << key_setup_shift;
                             key_setup_shift += 2;
                         } else if keypad.keys[3].is_released {
-                            keypad.keys[setup_key_num].key_code |= 0x03 << key_setup_shift;
+                            keypad.keys[key_num].key_code |= 0x03 << key_setup_shift;
                             key_setup_shift += 2;
                         }
 
