@@ -170,14 +170,14 @@ enum KeyboardMode {
 enum KeySetupMode {
     SelectKey,
     SelectKeyType(usize),
-    ReadKeyCode(usize),
+    ReadKeyCode(usize, usize),
 }
 impl Clone for KeySetupMode {
     fn clone(&self) -> KeySetupMode {
         match self {
             KeySetupMode::SelectKey => KeySetupMode::SelectKey,
             KeySetupMode::SelectKeyType(a) => KeySetupMode::SelectKeyType(*a),
-            KeySetupMode::ReadKeyCode(a) => KeySetupMode::ReadKeyCode(*a),
+            KeySetupMode::ReadKeyCode(a, b) => KeySetupMode::ReadKeyCode(*a, *b),
         }
     }
 }
@@ -259,8 +259,6 @@ fn main() -> ! {
     leds[2].turn_off();
 
     let mut keypad = Keyboard::new(key_matrix, keys, leds);
-
-    let mut key_setup_shift = 0;
 
     let gpioc = Gpioc::new();
     let pc13 = Port::new(PortNum::P13, PortMode::Output(OutputConfig::GeneralPurposePushPull(MaxSpeed::S2MHz)), &gpioc);
@@ -362,51 +360,50 @@ fn main() -> ! {
 
                         if keypad.keys[0].is_released {
                             keypad.keys[key_num].key_type = KeyType::Default;
-                            keypad.mode = KeyboardMode::KeySetup( KeySetupMode::ReadKeyCode(key_num) );
+                            keypad.mode = KeyboardMode::KeySetup( KeySetupMode::ReadKeyCode(key_num, 0) );
                         } else if keypad.keys[1].is_released {
                             keypad.keys[key_num].key_type = KeyType::Modifier;
-                            keypad.mode = KeyboardMode::KeySetup( KeySetupMode::ReadKeyCode(key_num) );
+                            keypad.mode = KeyboardMode::KeySetup( KeySetupMode::ReadKeyCode(key_num, 0) );
                         }
                     },
-                    KeySetupMode::ReadKeyCode(key_num) => {
+                    KeySetupMode::ReadKeyCode(key_num, key_shift) => {
 
                         keypad.leds[2].turn_off();
 
                         if keypad.keys[0].is_released {
-                            keypad.keys[key_num].key_code |= 0x00 << key_setup_shift;
-                            key_setup_shift += 2;
+                            keypad.keys[key_num].key_code |= 0x00 << key_shift;
+                            keypad.mode = KeyboardMode::KeySetup( KeySetupMode::ReadKeyCode(key_num, key_shift + 2) );
                         } else if keypad.keys[1].is_released {
-                            keypad.keys[key_num].key_code |= 0x01 << key_setup_shift;
-                            key_setup_shift += 2;
+                            keypad.keys[key_num].key_code |= 0x01 << key_shift;
+                            keypad.mode = KeyboardMode::KeySetup( KeySetupMode::ReadKeyCode(key_num, key_shift + 2) );
                         } else if keypad.keys[2].is_released {
-                            keypad.keys[key_num].key_code |= 0x02 << key_setup_shift;
-                            key_setup_shift += 2;
+                            keypad.keys[key_num].key_code |= 0x02 << key_shift;
+                            keypad.mode = KeyboardMode::KeySetup( KeySetupMode::ReadKeyCode(key_num, key_shift + 2) );
                         } else if keypad.keys[3].is_released {
-                            keypad.keys[key_num].key_code |= 0x03 << key_setup_shift;
-                            key_setup_shift += 2;
+                            keypad.keys[key_num].key_code |= 0x03 << key_shift;
+                            keypad.mode = KeyboardMode::KeySetup( KeySetupMode::ReadKeyCode(key_num, key_shift + 2) );
                         }
 
-                        if key_setup_shift == 0 {
+                        if key_shift == 0 {
                             keypad.leds[0].turn_on();
                             keypad.leds[1].turn_off();
                             keypad.leds[2].turn_off();
-                        } else if key_setup_shift == 2 {
+                        } else if key_shift == 2 {
                             keypad.leds[0].turn_off();
                             keypad.leds[1].turn_on();
                             keypad.leds[2].turn_off();
-                        } else if key_setup_shift == 4 {
+                        } else if key_shift == 4 {
                             keypad.leds[0].turn_on();
                             keypad.leds[1].turn_on();
                             keypad.leds[2].turn_off();
-                        } else if key_setup_shift == 6 {
+                        } else if key_shift == 6 {
                             keypad.leds[0].turn_off();
                             keypad.leds[1].turn_off();
                             keypad.leds[2].turn_on();
                         }
 
-                        if key_setup_shift == 8 {
+                        if key_shift == 8 {
                             keypad.mode = KeyboardMode::Normal;
-                            key_setup_shift = 0;
 
                             keypad.leds[0].turn_off();
                             keypad.leds[1].turn_off();
@@ -474,7 +471,6 @@ enum UsbTransactionDirection {
     In, 
     Out,
 }
-
 
 fn get_interrupt(usb: &Usb) -> UsbInterrupt {
     let interrupt_type: UsbInterrupt = if usb.istr.get_bit(15) == 1 {
