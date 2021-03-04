@@ -236,16 +236,17 @@ fn main() -> ! {
     clock::init();
     init_usb();
 
-
     let gpioa = Gpioa::new();
+    let gpiob = Gpiob::new();
+
     let matrix_columns = [
-        Port::new(PortNum::P5, PortMode::Input( InputConfig::Floating ), &gpioa),
-        Port::new(PortNum::P4, PortMode::Input( InputConfig::Floating ), &gpioa),
         Port::new(PortNum::P3, PortMode::Input( InputConfig::Floating ), &gpioa),
+        Port::new(PortNum::P12, PortMode::Input( InputConfig::Floating ), &gpiob),
+        Port::new(PortNum::P9, PortMode::Input( InputConfig::Floating ), &gpiob),
     ];
     let matrix_rows = [
-        Port::new(PortNum::P6, PortMode::Input( InputConfig::PullDown ), &gpioa),
-        Port::new(PortNum::P7, PortMode::Input( InputConfig::PullDown ), &gpioa),
+        Port::new(PortNum::P0, PortMode::Input( InputConfig::PullDown ), &gpiob),
+        Port::new(PortNum::P2, PortMode::Input( InputConfig::PullDown ), &gpioa),
     ];
 
     let key_matrix = KeyMatrix::new( matrix_columns, matrix_rows );
@@ -259,7 +260,6 @@ fn main() -> ! {
         Key::new(0x40, KeyType::Modifier), 
     ];
 
-    let gpiob = Gpiob::new();
     let leds = [
         Led::new( Port::new(PortNum::P15, PortMode::Output(OutputConfig::GeneralPurposePushPull(MaxSpeed::S2MHz)), &gpioa) ),
         Led::new( Port::new(PortNum::P4, PortMode::Output(OutputConfig::GeneralPurposePushPull(MaxSpeed::S2MHz)), &gpiob) ),
@@ -270,10 +270,6 @@ fn main() -> ! {
     leds[2].turn_off();
 
     let mut keypad = Keyboard::new(key_matrix, keys, leds);
-
-    let gpioc = Gpioc::new();
-    let pc13 = Port::new(PortNum::P13, PortMode::Output(OutputConfig::GeneralPurposePushPull(MaxSpeed::S2MHz)), &gpioc);
-    pc13.set_high();
 
     let mut report: [u8; 8] = [
         0x00, // modifier
@@ -289,10 +285,8 @@ fn main() -> ! {
 
         keypad.scan();
 
-
         match keypad.mode {
             KeyboardMode::Normal => {
-                pc13.set_high();
 
                 if keypad.keys[0].is_pressed && keypad.keys[3].is_pressed && keypad.keys[4].is_pressed && !keypad.keys[1].is_pressed && !keypad.keys[2].is_pressed && !keypad.keys[5].is_pressed {
                     keypad.leds[0].turn_on();
