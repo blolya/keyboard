@@ -85,6 +85,17 @@ impl<'a> Keyboard<'a> {
         }
     }
 
+    fn reset_keys(&mut self) {
+        self.keys = [ 
+            Key::new(0x01, KeyType::Modifier), 
+            Key::new(0x04, KeyType::Modifier), 
+            Key::new(0x4c, KeyType::Default), 
+            Key::new(0x2a, KeyType::Default), 
+            Key::new(0x10, KeyType::Modifier), 
+            Key::new(0x40, KeyType::Modifier), 
+        ];
+    }
+
     fn scan(&mut self) {
 
         let safety_cycles_num = 10;
@@ -298,14 +309,7 @@ fn main() -> ! {
 
                     if loop_counter > 500 {
                         loop_counter = 0;
-                        keypad.keys = [ 
-                            Key::new(0x01, KeyType::Modifier), 
-                            Key::new(0x04, KeyType::Modifier), 
-                            Key::new(0x4c, KeyType::Default), 
-                            Key::new(0x2a, KeyType::Default), 
-                            Key::new(0x10, KeyType::Modifier), 
-                            Key::new(0x40, KeyType::Modifier), 
-                        ];
+                        keypad.reset_keys();
                         keypad.leds[2].turn_off();
                     } else {
                         loop_counter += 1;
