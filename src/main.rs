@@ -301,6 +301,7 @@ fn main() -> ! {
                 } else if keypad.keys[1].is_pressed && keypad.keys[2].is_pressed && keypad.keys[5].is_pressed && !keypad.keys[0].is_pressed && !keypad.keys[3].is_pressed && !keypad.keys[4].is_pressed {
                     keypad.leds[2].turn_on();
 
+                    usb_send_report( [0, 0, 0, 0, 0, 0, 0, 0] );
                     if loop_counter > 500 {
                         loop_counter = 0;
                         keypad.reset_keys();
