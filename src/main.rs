@@ -293,6 +293,7 @@ fn main() -> ! {
 
                     usb_send_report( [0, 0, 0, 0, 0, 0, 0, 0] );
                     if loop_counter > 500 {
+                        loop_counter = 0;
                         keypad.mode = KeyboardMode::Idle;
                         keypad.leds[0].turn_off();
                     } else {
@@ -305,6 +306,7 @@ fn main() -> ! {
                     if loop_counter > 500 {
                         loop_counter = 0;
                         keypad.reset_keys();
+                        keypad.mode = KeyboardMode::Idle;
                         keypad.leds[2].turn_off();
                     } else {
                         loop_counter += 1;
