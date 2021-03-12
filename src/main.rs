@@ -22,6 +22,7 @@ use peris::core::{
     usb::Usb,
     nvic::Nvic,
     pma::Pma,
+    afio::Afio,
     gpio::{
         gpioa::Gpioa,
         gpiob::Gpiob,
@@ -235,6 +236,8 @@ impl<'a> KeyMatrix<'a> {
 fn main() -> ! {
     clock::init();
     init_usb();
+
+    Afio::new().disable_jtag_enable_ports();
 
 
     let gpioa = Gpioa::new();
