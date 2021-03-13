@@ -318,6 +318,7 @@ fn main() -> ! {
                 else {
                     loop_counter = 0;
                     keypad.leds[0].turn_off();
+                    keypad.leds[1].turn_off();
                     keypad.leds[2].turn_off();
 
                     new_report = keypad.get_report();
@@ -334,7 +335,7 @@ fn main() -> ! {
                 keypad.leds[0].turn_off();
 
                 if !keypad.keys[0].is_pressed && !keypad.keys[2].is_pressed && !keypad.keys[4].is_pressed && !keypad.keys[1].is_pressed && !keypad.keys[3].is_pressed && !keypad.keys[5].is_pressed {
-                    usb_send_report([0, 0, 0, 0, 0, 0, 0, 0]);
+                    
                     keypad.mode = KeyboardMode::KeySetup( KeySetupMode::SelectKey );
                 }
             },
