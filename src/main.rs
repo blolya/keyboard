@@ -22,6 +22,7 @@ use peris::core::{
     usb::Usb,
     nvic::Nvic,
     pma::Pma,
+    afio::Afio,
     gpio::{
         gpioa::Gpioa,
         gpiob::Gpiob,
@@ -236,6 +237,8 @@ fn main() -> ! {
     clock::init();
     init_usb();
 
+    Afio::new().disable_jtag_enable_ports();
+
     let gpioa = Gpioa::new();
     let gpiob = Gpiob::new();
 
@@ -306,13 +309,17 @@ fn main() -> ! {
                     if loop_counter > 500 {
                         loop_counter = 0;
                         keypad.reset_keys();
-                        keypad.mode = KeyboardMode::Idle;
+                        
                         keypad.leds[2].turn_off();
                     } else {
                         loop_counter += 1;
                     }
                 }
                 else {
+                    loop_counter = 0;
+                    keypad.leds[0].turn_off();
+                    keypad.leds[2].turn_off();
+
                     new_report = keypad.get_report();
                     if new_report != report {
                         report = new_report;
@@ -324,7 +331,7 @@ fn main() -> ! {
             KeyboardMode::Idle => {
                 loop_counter = 0;
                 
-                keypad.leds[0].toggle();
+                keypad.leds[0].turn_off();
 
                 if !keypad.keys[0].is_pressed && !keypad.keys[2].is_pressed && !keypad.keys[4].is_pressed && !keypad.keys[1].is_pressed && !keypad.keys[3].is_pressed && !keypad.keys[5].is_pressed {
                     usb_send_report([0, 0, 0, 0, 0, 0, 0, 0]);
@@ -335,8 +342,7 @@ fn main() -> ! {
                 match key_setup_mode {
                     KeySetupMode::SelectKey => {
 
-                        keypad.leds[0].turn_off();
-                        keypad.leds[1].toggle();
+                        keypad.leds[0].toggle();
 
                         if keypad.keys[0].is_released {
                             keypad.mode = KeyboardMode::KeySetup(KeySetupMode::SelectKeyType(0));
@@ -354,8 +360,8 @@ fn main() -> ! {
                     },
                     KeySetupMode::SelectKeyType(key_num) => {
 
-                        keypad.leds[1].turn_off();
-                        keypad.leds[2].toggle();
+                        keypad.leds[0].turn_off();
+                        keypad.leds[1].toggle();
 
                         keypad.keys[key_num].key_code = 0x00;
 
@@ -369,7 +375,7 @@ fn main() -> ! {
                     },
                     KeySetupMode::ReadKeyCode(key_num, key_shift) => {
 
-                        keypad.leds[2].turn_off();
+                        keypad.leds[1].turn_off();
 
                         if keypad.keys[0].is_released {
                             keypad.keys[key_num].key_code |= 0x00 << key_shift;
