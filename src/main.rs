@@ -31,6 +31,8 @@ use peris::core::{
 };
 use stm32f1::stm32f103::interrupt;
 
+use peris::peripherals::fprom::Fprom;
+
 
 enum DeviceStatus {
     Default,
@@ -171,6 +173,12 @@ impl Key {
         self.is_released = self.is_pressed & !scan; 
         self.is_pressed = scan;
     }
+    fn get_code(&self) -> u8 {
+        self.key_code
+    }
+    fn get_type(&self) -> &KeyType {
+        &self.key_type
+    }
 }
 
 
@@ -253,14 +261,39 @@ fn main() -> ! {
 
     let key_matrix = KeyMatrix::new( matrix_columns, matrix_rows );
 
-    let keys =  [ 
-        Key::new(0x01, KeyType::Modifier), 
-        Key::new(0x04, KeyType::Modifier), 
-        Key::new(0x4c, KeyType::Default), 
-        Key::new(0x2a, KeyType::Default), 
-        Key::new(0x10, KeyType::Modifier), 
-        Key::new(0x40, KeyType::Modifier), 
-    ];
+
+    let mut fprom = Fprom::new(0x0000_f800);
+
+    let mut key_buffer: [u16; 6] = [0; 6];
+
+    let keys = match fprom.read(&mut key_buffer) {
+        None => {
+            [ 
+                Key::new(0x01, KeyType::Modifier), 
+                Key::new(0x04, KeyType::Modifier), 
+                Key::new(0x4c, KeyType::Default), 
+                Key::new(0x2a, KeyType::Default), 
+                Key::new(0x10, KeyType::Modifier), 
+                Key::new(0x40, KeyType::Modifier), 
+            ]
+        },
+        Some(_) => {
+            let mut keys: [Key; 6] = [ 
+                Key::new(0x01, KeyType::Modifier),
+                Key::new(0x04, KeyType::Modifier), 
+                Key::new(0x4c, KeyType::Default), 
+                Key::new(0x2a, KeyType::Default), 
+                Key::new(0x10, KeyType::Modifier), 
+                Key::new(0x40, KeyType::Modifier), 
+            ];
+    
+            for (key_index, raw_key) in key_buffer.iter().enumerate() {
+                keys[key_index] = Key::new(*raw_key as u8, if (*raw_key >> 8) == 0 {KeyType::Default} else {KeyType::Modifier});
+            }
+            keys
+        },
+    };
+
 
     let gpiob = Gpiob::new();
     let leds = [
@@ -412,6 +445,18 @@ fn main() -> ! {
 
                         if key_shift == 8 {
                             keypad.mode = KeyboardMode::Normal;
+
+                            let mut buffer: [u16; 6] = [0, 0, 0, 0, 0, 0];
+                            for (key_index, key) in keypad.keys.iter().enumerate() {
+                                let raw_modifier: u16 = match key.get_type() {
+                                    KeyType::Default => 0x0000,
+                                    KeyType::Modifier => 0x0001,
+                                };
+
+                                buffer[key_index] = (raw_modifier << 8) | (key.get_code() as u16);
+                            };
+
+                            fprom.write(&buffer);
 
                             keypad.leds[0].turn_off();
                             keypad.leds[1].turn_off();
