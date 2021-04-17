@@ -348,6 +348,28 @@ fn main() -> ! {
                         loop_counter = 0;
                         keypad.reset_keys();
                         keypad.leds[2].turn_off();
+
+                        let keys = [ 
+                            Key::new(0x01, KeyType::Modifier), 
+                            Key::new(0x04, KeyType::Modifier), 
+                            Key::new(0x4c, KeyType::Default), 
+                            Key::new(0x2a, KeyType::Default), 
+                            Key::new(0x10, KeyType::Modifier), 
+                            Key::new(0x40, KeyType::Modifier), 
+                        ];
+
+                        let mut buffer: [u16; 6] = [0, 0, 0, 0, 0, 0];
+                        for (key_index, key) in keys.iter().enumerate() {
+                            let raw_modifier: u16 = match key.get_type() {
+                                KeyType::Default => 0x0000,
+                                KeyType::Modifier => 0x0001,
+                            };
+
+                            buffer[key_index] = (raw_modifier << 8) | (key.get_code() as u16);
+                        };
+
+                        fprom.write(&buffer);
+
                     } else {
                         loop_counter += 1;
                     }
